@@ -6,6 +6,8 @@ import { sendSuccess, sendCreated, sendError, sendNotFound } from '../../utils/a
 import { authenticate, requireInternalUser } from '../../middleware/auth';
 import { buildErpClient } from '../../lib/erpClient';
 import { runSyncJob } from '../sync/sync.service';
+import { enqueueSync } from '../../lib/queue';
+import { upsertMappingSchedule, removeMappingSchedule } from '../../lib/scheduler';
 
 const router = Router();
 router.use(authenticate, requireInternalUser);
@@ -124,6 +126,10 @@ const createMappingSchema = z.object({
     totalPath: z.string().optional(),
   }).optional(),
   queryParams: z.record(z.unknown()).optional(),
+  // Scheduling
+  isScheduled: z.boolean().optional().default(false),
+  syncCron: z.string().optional().nullable(),
+  syncInterval: z.string().optional().nullable(),
 });
 
 // GET /api/integrations/:id/mappings
@@ -150,14 +156,24 @@ router.post('/:id/mappings', asyncHandler(async (req, res) => {
       fieldMappings: data.fieldMappings as any,
       paginationConfig: data.paginationConfig as any,
       queryParams: data.queryParams as any,
+      isScheduled: data.isScheduled ?? false,
+      syncCron: data.syncCron ?? null,
+      syncInterval: data.syncInterval ?? null,
     },
     update: {
       externalEndpoint: data.externalEndpoint,
       fieldMappings: data.fieldMappings as any,
       paginationConfig: data.paginationConfig as any,
       queryParams: data.queryParams as any,
+      isScheduled: data.isScheduled ?? false,
+      syncCron: data.syncCron ?? null,
+      syncInterval: data.syncInterval ?? null,
     },
   });
+
+  // Register or update cron schedule in pg-boss
+  await upsertMappingSchedule(mapping.id);
+
   return sendCreated(res, mapping, 'Mapping saved');
 }));
 
@@ -183,6 +199,7 @@ router.patch('/:id/mappings/:mappingId', asyncHandler(async (req, res) => {
 
 // DELETE /api/integrations/:id/mappings/:mappingId
 router.delete('/:id/mappings/:mappingId', asyncHandler(async (req, res) => {
+  await removeMappingSchedule(req.params.mappingId);
   await prisma.integrationMapping.delete({ where: { id: req.params.mappingId } });
   return sendSuccess(res, null, 'Mapping deleted');
 }));
@@ -219,17 +236,23 @@ router.post('/:id/sync', asyncHandler(async (req, res) => {
     return sendError(res, `No active mapping found for resource: ${resource}. Configure a mapping first.`, 400);
   }
 
-  // Start jobs (one per mapping, non-blocking)
-  const jobIds: string[] = [];
+  // Enqueue jobs via pg-boss (persisted, retriable, high-volume)
+  const queueJobIds: (string | null)[] = [];
   for (const mapping of mappingsToSync) {
-    const jobId = await runSyncJob(integration.id, req.companyId!, mapping as any);
-    jobIds.push(jobId);
+    const queueJobId = await enqueueSync({
+      integrationId: integration.id,
+      companyId: req.companyId!,
+      mappingId: mapping.id,
+      resource: mapping.resource,
+      triggeredBy: 'manual',
+    });
+    queueJobIds.push(queueJobId);
   }
 
   return res.status(202).json({
     success: true,
-    message: `Sync started for ${mappingsToSync.length} resource(s)`,
-    data: { jobIds },
+    message: `Sync enqueued for ${mappingsToSync.length} resource(s)`,
+    data: { queueJobIds },
   });
 }));
 

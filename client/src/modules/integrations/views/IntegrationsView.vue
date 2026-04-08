@@ -350,6 +350,61 @@
                   </button>
                 </div>
 
+                <!-- ─── Scheduling Section ─────────────────────────── -->
+                <div class="border border-[var(--color-brand-200)] rounded-xl p-4 space-y-3 bg-gradient-to-br from-[var(--color-brand-50)] to-[var(--color-accent-50)]">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <Icon icon="mdi:clock-outline" class="w-4 h-4 text-[var(--color-accent-600)]" />
+                      <p class="text-xs font-semibold text-[var(--color-brand-700)] uppercase tracking-wide">Automatización (Scheduler)</p>
+                    </div>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <span class="text-xs text-[var(--color-brand-500)]">Activar</span>
+                      <div class="relative">
+                        <input type="checkbox" v-model="mappingForm[resource].isScheduled" class="sr-only" />
+                        <div class="w-9 h-5 rounded-full transition-colors" :class="mappingForm[resource].isScheduled ? 'bg-[var(--color-accent-500)]' : 'bg-[var(--color-brand-300)]'"></div>
+                        <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" :class="mappingForm[resource].isScheduled ? 'translate-x-4' : 'translate-x-0'"></div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div v-if="mappingForm[resource].isScheduled" class="space-y-3 pt-1">
+                    <div>
+                      <label class="label">Frecuencia</label>
+                      <select
+                        v-model="mappingForm[resource].syncCronPreset"
+                        class="input text-sm"
+                        @change="applyPreset(resource)"
+                      >
+                        <option value="custom">Personalizada (Cron)</option>
+                        <option value="*/15 * * * *">Cada 15 minutos</option>
+                        <option value="0 * * * *">Cada hora</option>
+                        <option value="0 */6 * * *">Cada 6 horas</option>
+                        <option value="0 */12 * * *">Cada 12 horas</option>
+                        <option value="0 2 * * *">Diario a las 2 AM</option>
+                        <option value="0 3 * * 1">Semanal (Lunes 3 AM)</option>
+                        <option value="0 4 1 * *">Mensual (Día 1, 4 AM)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="label">Expresión Cron</label>
+                      <input
+                        v-model="mappingForm[resource].syncCron"
+                        class="input text-sm font-mono"
+                        placeholder="0 2 * * * (diario a las 2 AM)"
+                      />
+                      <p class="text-xs text-[var(--color-brand-400)] mt-1">
+                        Formato: minuto hora día-mes mes día-semana · Zona horaria: America/Santo_Domingo
+                      </p>
+                    </div>
+                    <div v-if="mappingForm[resource].syncCron" class="flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-100)] rounded-lg">
+                      <Icon icon="mdi:information-outline" class="w-4 h-4 text-[var(--color-accent-600)]" />
+                      <span class="text-xs text-[var(--color-accent-700)]">
+                        Próxima ejecución: {{ describeCron(mappingForm[resource].syncCron) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="flex justify-end gap-2">
                   <button
                     v-if="getMappingForResource(resource)"
@@ -605,6 +660,11 @@ function openMappingModal(integration: Integration) {
       dataPath: (existing?.paginationConfig as any)?.dataPath ?? '',
       totalPath: (existing?.paginationConfig as any)?.totalPath ?? '',
       fields: { ...DEFAULT_FIELD_MAPPINGS[r], ...(existing?.fieldMappings ?? {}) },
+      // Scheduling
+      isScheduled: (existing as any)?.isScheduled ?? false,
+      syncCron: (existing as any)?.syncCron ?? '',
+      syncInterval: (existing as any)?.syncInterval ?? '',
+      syncCronPreset: (existing as any)?.syncCron ?? 'custom',
     }
   })
   expandedResource.value = null
@@ -645,6 +705,9 @@ async function saveMapping(resource: SyncResource) {
       externalEndpoint: form.externalEndpoint,
       fieldMappings: form.fields,
       paginationConfig,
+      isScheduled: form.isScheduled ?? false,
+      syncCron: form.isScheduled && form.syncCron ? form.syncCron : null,
+      syncInterval: form.isScheduled && form.syncCron ? describeCron(form.syncCron) : null,
     })
     showToast('success', `Mapping de ${RESOURCE_LABELS[resource]} guardado`)
     await load()
@@ -654,6 +717,27 @@ async function saveMapping(resource: SyncResource) {
   } finally {
     savingMapping[resource] = false
   }
+}
+
+function applyPreset(resource: SyncResource) {
+  const preset = mappingForm[resource].syncCronPreset
+  if (preset !== 'custom') {
+    mappingForm[resource].syncCron = preset
+  }
+}
+
+function describeCron(cron: string): string {
+  if (!cron) return ''
+  const presets: Record<string, string> = {
+    '*/15 * * * *': 'cada 15 minutos',
+    '0 * * * *': 'cada hora',
+    '0 */6 * * *': 'cada 6 horas',
+    '0 */12 * * *': 'cada 12 horas',
+    '0 2 * * *': 'diario a las 2:00 AM',
+    '0 3 * * 1': 'semanal los lunes a las 3:00 AM',
+    '0 4 1 * *': 'el 1ro de cada mes a las 4:00 AM',
+  }
+  return presets[cron] ?? `expresión: ${cron}`
 }
 
 async function deleteMapping(resource: SyncResource) {

@@ -174,12 +174,19 @@ model IntegrationMapping {
   paginationConfig Json?        // PaginationConfig: { type, pageParam, pageSizeParam, pageSize, dataPath, totalPath }
   queryParams      Json?        // extra query params
   isActive         Boolean      @default(true)
+  // ─── Scheduling ──────────────────────────────────────
+  isScheduled      Boolean      @default(false)
+  syncCron         String?      // cron expression e.g. "0 2 * * *" = daily at 2 AM
+  syncInterval     String?      // human-readable interval e.g. "every 6 hours"
+  nextRunAt        DateTime?    // when the next run will fire
+  lastScheduledAt  DateTime?    // when it was last triggered by scheduler
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
   @@index([integrationId])
+  @@index([isScheduled, nextRunAt]) // for efficient scheduler queries
   @@unique([integrationId, resource])
 }
 
