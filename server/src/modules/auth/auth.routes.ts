@@ -1,0 +1,15 @@
+import { Router } from 'express';
+import { register, login, me, updateProfile, changePassword } from './auth.controller';
+import { validate } from '../../middleware/validator';
+import { authenticate } from '../../middleware/auth';
+import { registerSchema, loginSchema, updateProfileSchema, updatePasswordSchema } from './auth.schemas';
+
+const router = Router();
+
+router.post('/register', validate(registerSchema), register);
+router.post('/login', validate(loginSchema), login);
+router.get('/me', authenticate, me);
+router.put('/profile', authenticate, validate(updateProfileSchema), updateProfile);
+router.put('/password', authenticate, validate(updatePasswordSchema), changePassword);
+
+export default router;
