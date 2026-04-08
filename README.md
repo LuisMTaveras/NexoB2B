@@ -41,34 +41,51 @@ cd NexoB2B
 npm install
 ```
 
-2. **Configuración de Variables de Entorno**.
-Crea y ajusta tus archivos `.env`. 
-Dentro de `/server/.env` asegura la cadena de conexión de Prisma:
-```env
-DATABASE_URL="postgresql://USUARIO:PASSWORD@localhost:5432/nexob2b?schema=public"
-JWT_SECRET="alguna-clave-secreta-extremadamente-segura"
+2. **Configuración de Variables de Entorno**
+Copia el archivo de ejemplo a un archivo `.env` tanto en la raíz como en `/server` (Prisma y el servidor lo requerirán):
+```bash
+cp .env.example .env
+cp .env.example server/.env
 ```
+Asegura que `DATABASE_URL` y `JWT_SECRET` tengan valores válidos.
 
 3. **Migrar la Base de Datos e Inyectar Datos Iniciales**
-Prisma construirá la base de datos y cargará los primeros usuarios administrativos de arranque:
+Desde la raíz del proyecto, usa los comandos centralizados para preparar tu base de datos PostgreSQL:
 ```bash
-cd server
-npx prisma migrate dev
-npx prisma db seed
-cd ..
+# Ejecutar migraciones
+npm run db:migrate
+
+# Inyectar datos iniciales (Seed)
+npm run db:seed
 ```
 
 4. **Arrancar Entorno de Desarrollo**
-Usa los comandos de los workspaces de NPM para levantar los servidores en paralelo:
+Puedes lanzar ambos servicios (Frontend y Backend) en paralelo con un solo comando desde la raíz:
 ```bash
-# Terminal 1: Servidor Node (API)
-npm run dev -w server
-
-# Terminal 2: Servidor Vite (Frontend)
-npm run dev -w client
+npm run dev
 ```
+O si prefieres lanzarlos por separado:
+- **API**: `npm run dev:server`
+- **Frontend**: `npm run dev:client`
 
-¡Todo estará en línea! El Front-end típicamente responderá en `http://localhost:5173`.
+¡Todo estará en línea! 
+- **Frontend**: [http://localhost:5173](http://localhost:5173)
+- **API Docs (Scalar)**: [http://localhost:3000/docs](http://localhost:3000/docs)
+
+---
+
+## 🔑 Credenciales de Acceso (Entorno Dev)
+El proceso de *seeding* crea una empresa demostrativa y un administrador inicial:
+- **URL**: `http://localhost:5173/login`
+- **Usuario**: `admin@demo.com`
+- **Password**: `Admin1234!`
+
+## 📊 Visualización de Datos (Prisma Studio)
+Para explorar y editar los datos de manera visual, puedes levantar Prisma Studio:
+```bash
+npm run db:studio
+```
+Estará disponible en [http://localhost:5555](http://localhost:5555).
 
 ---
 

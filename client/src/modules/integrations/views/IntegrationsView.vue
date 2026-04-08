@@ -106,28 +106,33 @@
         </div>
 
         <!-- Last job status -->
-        <div v-if="integration.syncJobs && integration.syncJobs.length > 0" class="border-t border-[var(--color-brand-100)] pt-3">
-          <div class="flex items-center justify-between">
+        <div v-if="integration.syncJobs?.length" class="border-t border-[var(--color-brand-100)] pt-3">
+          <div v-for="lastJob in integration.syncJobs.slice(0, 1)" :key="lastJob.id" class="flex items-center justify-between">
             <span class="text-xs text-[var(--color-brand-500)]">Último job:</span>
-            <div v-if="integration.syncJobs && integration.syncJobs.length > 0" class="flex items-center gap-3 text-xs">
+            <div class="flex items-center gap-3 text-xs">
               <span class="badge" :class="{
-                'badge-neutral': integration.syncJobs[0].status === 'PENDING',
-                'badge-info': integration.syncJobs[0].status === 'RUNNING',
-                'badge-success': integration.syncJobs[0].status === 'SUCCESS',
-                'badge-warning': integration.syncJobs[0].status === 'PARTIAL',
-                'badge-danger': integration.syncJobs[0].status === 'FAILED',
-              }">{{ integration.syncJobs[0].status }}</span>
+                'badge-neutral': lastJob.status === 'PENDING',
+                'badge-info': lastJob.status === 'RUNNING',
+                'badge-success': lastJob.status === 'SUCCESS',
+                'badge-warning': lastJob.status === 'PARTIAL',
+                'badge-danger': lastJob.status === 'FAILED',
+              }">{{ lastJob.status }}</span>
               <span class="text-[var(--color-brand-500)]">
-                ✓ {{ integration.syncJobs[0].recordsOk }}
-                <span v-if="integration.syncJobs[0].recordsFailed > 0" class="text-[var(--color-danger-500)] ml-1">
-                  ❌ {{ integration.syncJobs[0].recordsFailed }}
+                ✓ {{ lastJob.recordsOk }}
+                <span v-if="lastJob.recordsFailed > 0" class="text-[var(--color-danger-500)] ml-1">
+                  ❌ {{ lastJob.recordsFailed }}
                 </span>
               </span>
-              <button class="text-[var(--color-accent-500)] hover:underline" @click="openLogsModal(integration, integration.syncJobs[0])">
+              <button class="text-[var(--color-accent-500)] hover:underline" @click="openLogsModal(integration, lastJob)">
                 Ver logs
               </button>
             </div>
-            <div v-else class="text-xs text-[var(--color-brand-400)] italic">
+          </div>
+        </div>
+        <div v-else class="border-t border-[var(--color-brand-100)] pt-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-[var(--color-brand-500)]">Último job:</span>
+            <div class="text-xs text-[var(--color-brand-400)] italic">
               Sin actividad reciente
             </div>
           </div>
@@ -283,12 +288,24 @@
                     </select>
                   </div>
                   <template v-if="mappingForm[resource].paginationType !== 'none'">
-                    <div>
+                    <div v-if="mappingForm[resource].paginationType === 'page'">
                       <label class="label">Param de página</label>
                       <input v-model="mappingForm[resource].pageParam" class="input text-sm" placeholder="page" />
                     </div>
+                    <div v-if="mappingForm[resource].paginationType === 'offset'">
+                      <label class="label">Param de offset (Skip)</label>
+                      <input v-model="mappingForm[resource].offsetParam" class="input text-sm" placeholder="skip" />
+                    </div>
+                    <div v-if="mappingForm[resource].paginationType === 'cursor'">
+                      <label class="label">Param de cursor</label>
+                      <input v-model="mappingForm[resource].cursorParam" class="input text-sm" placeholder="cursor" />
+                    </div>
+                    <div v-if="mappingForm[resource].paginationType === 'cursor'">
+                      <label class="label">Ruta del siguiente cursor</label>
+                      <input v-model="mappingForm[resource].nextCursorPath" class="input text-sm font-mono" placeholder="meta.next_cursor" />
+                    </div>
                     <div>
-                      <label class="label">Param de tamaño</label>
+                      <label class="label">Param de tamaño (Limit)</label>
                       <input v-model="mappingForm[resource].pageSizeParam" class="input text-sm" placeholder="limit" />
                     </div>
                     <div>
@@ -298,6 +315,10 @@
                     <div>
                       <label class="label">Ruta del array en respuesta</label>
                       <input v-model="mappingForm[resource].dataPath" class="input font-mono text-sm" placeholder="data.results" />
+                    </div>
+                    <div>
+                      <label class="label">Ruta del total en respuesta</label>
+                      <input v-model="mappingForm[resource].totalPath" class="input font-mono text-sm" placeholder="total" />
                     </div>
                   </template>
                 </div>
@@ -576,9 +597,13 @@ function openMappingModal(integration: Integration) {
       externalEndpoint: existing?.externalEndpoint ?? '',
       paginationType: (existing?.paginationConfig as any)?.type ?? 'none',
       pageParam: (existing?.paginationConfig as any)?.pageParam ?? 'page',
+      offsetParam: (existing?.paginationConfig as any)?.offsetParam ?? 'skip',
+      cursorParam: (existing?.paginationConfig as any)?.cursorParam ?? 'cursor',
+      nextCursorPath: (existing?.paginationConfig as any)?.nextCursorPath ?? '',
       pageSizeParam: (existing?.paginationConfig as any)?.pageSizeParam ?? 'limit',
       pageSize: (existing?.paginationConfig as any)?.pageSize ?? 100,
       dataPath: (existing?.paginationConfig as any)?.dataPath ?? '',
+      totalPath: (existing?.paginationConfig as any)?.totalPath ?? '',
       fields: { ...DEFAULT_FIELD_MAPPINGS[r], ...(existing?.fieldMappings ?? {}) },
     }
   })
@@ -607,9 +632,13 @@ async function saveMapping(resource: SyncResource) {
     const paginationConfig = form.paginationType === 'none' ? undefined : {
       type: form.paginationType,
       pageParam: form.pageParam,
+      offsetParam: form.offsetParam,
+      cursorParam: form.cursorParam,
+      nextCursorPath: form.nextCursorPath || undefined,
       pageSizeParam: form.pageSizeParam,
       pageSize: form.pageSize,
       dataPath: form.dataPath || undefined,
+      totalPath: form.totalPath || undefined,
     }
     await integrationsApi.createMapping(selectedIntegration.value.id, {
       resource,
