@@ -6,11 +6,55 @@ import { sendSuccess, sendCreated, sendError, sendNotFound } from '../../utils/a
 import { authenticate, requireInternalUser } from '../../middleware/auth';
 import { buildErpClient } from '../../lib/erpClient';
 import { runSyncJob } from '../sync/sync.service';
-import { enqueueSync } from '../../lib/queue';
+import { enqueueSync, getQueue, QUEUE_NAME } from '../../lib/queue';
 import { upsertMappingSchedule, removeMappingSchedule } from '../../lib/scheduler';
 
 const router = Router();
 router.use(authenticate, requireInternalUser);
+
+// ─── Queue Monitoring ─────────────────────────────────────────────
+
+// GET /api/integrations/queue/status
+router.get('/queue/status', asyncHandler(async (req, res) => {
+  const boss = await getQueue();
+  
+  const [queues, schedules, recentJobs] = await Promise.all([
+    boss.getQueues(),
+    boss.getSchedules(),
+    prisma.integrationSyncJob.findMany({
+      where: { integration: { companyId: req.companyId! } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: {
+        integration: { select: { name: true } }
+      }
+    })
+  ]);
+
+  const syncQueue = queues.find(q => q.name === QUEUE_NAME);
+  
+  // Enhance schedules with integration names
+  const mappingIds = schedules.map(s => s.key);
+  const mappings = await prisma.integrationMapping.findMany({
+    where: { id: { in: mappingIds } },
+    include: { integration: { select: { name: true } } }
+  });
+
+  const enhancedSchedules = schedules.map(s => {
+    const mapping = mappings.find(m => m.id === s.key);
+    return {
+      ...s,
+      integrationName: mapping?.integration?.name ?? 'Unknown',
+      resource: mapping?.resource ?? 'Unknown'
+    };
+  });
+
+  return sendSuccess(res, {
+    stats: syncQueue || null,
+    schedules: enhancedSchedules,
+    recentJobs
+  });
+}));
 
 // ─── CRUD Integrations ────────────────────────────────────────────
 

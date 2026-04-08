@@ -6,10 +6,16 @@
         <h2 class="page-title">Integraciones ERP</h2>
         <p class="page-subtitle">Conecta tu sistema ERP y sincroniza datos comerciales</p>
       </div>
-      <button class="btn btn-primary" @click="openCreateModal">
-        <Icon icon="mdi:plus" class="w-4 h-4" />
-        Nueva integración
-      </button>
+      <div class="flex items-center gap-2">
+        <router-link to="/admin/integrations/queue" class="btn btn-secondary">
+          <Icon icon="mdi:monitor-dashboard" class="w-4 h-4" />
+          Monitor de Cola
+        </router-link>
+        <button class="btn btn-primary" @click="openCreateModal">
+          <Icon icon="mdi:plus" class="w-4 h-4" />
+          Nueva integración
+        </button>
+      </div>
     </div>
 
     <!-- Loading -->

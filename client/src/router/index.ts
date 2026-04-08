@@ -41,6 +41,11 @@ const router = createRouter({
           component: () => import('@/modules/integrations/views/IntegrationsView.vue'),
         },
         {
+          path: 'integrations/queue',
+          name: 'queue-monitor',
+          component: () => import('@/modules/integrations/views/QueueMonitorView.vue'),
+        },
+        {
           path: 'customers',
           name: 'customers',
           component: () => import('@/modules/customers/views/CustomersView.vue'),

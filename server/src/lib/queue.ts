@@ -1,12 +1,4 @@
-// pg-boss does not ship full ESM-compatible type declarations for direct import.
-// We use a workaround: dynamic require and cast to `any` for the constructor,
-// letting us still benefit from IntelliSense through the Boss instance.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const PgBoss = require('pg-boss') as {
-  new(options: Record<string, unknown>): any;
-  prototype: any;
-};
-
+import { PgBoss } from 'pg-boss';
 import { logger } from './logger';
 
 export const QUEUE_NAME = 'integration-sync';
@@ -19,10 +11,9 @@ export interface SyncJobPayload {
   triggeredBy: 'manual' | 'scheduler';
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let boss: any = null;
+let boss: PgBoss | null = null;
 
-export async function getQueue(): Promise<any> {
+export async function getQueue(): Promise<PgBoss> {
   if (boss) return boss;
 
   const connectionString = process.env.DATABASE_URL;
@@ -40,12 +31,14 @@ export async function getQueue(): Promise<any> {
   });
 
   boss.on('error', (error: Error) => logger.error('[Queue] pg-boss error:', error));
-  boss.on('monitor-states', (states: Record<string, unknown>) => {
+  boss.on('monitor-states', (states: any) => {
     logger.info('[Queue] state monitor', states);
   });
 
   await boss.start();
-  logger.info('[Queue] pg-boss started and connected');
+  // Ensure the queue exists before workers try to subscribe
+  await boss.createQueue(QUEUE_NAME);
+  logger.info(`[Queue] pg-boss started and connected. Queue "${QUEUE_NAME}" ensured.`);
 
   return boss;
 }
@@ -64,22 +57,33 @@ export async function enqueueSync(payload: SyncJobPayload, options?: { runAt?: D
   return jobId;
 }
 
+/**
+ * Register a cron schedule in pg-boss.
+ * 
+ * pg-boss v12 schedule API: schedule(name, cron, data, options)
+ *   - name: must be an existing queue name (foreign key constraint)
+ *   - key:  differentiates multiple schedules on the same queue
+ *   - data: the payload sent when the cron fires
+ * 
+ * We use QUEUE_NAME as the schedule name and the mappingId as the key.
+ */
 export async function scheduleCronSync(
-  scheduleId: string,
+  mappingKey: string,
   cron: string,
   payload: SyncJobPayload,
 ): Promise<void> {
   const queue = await getQueue();
-  await queue.schedule(scheduleId, cron, payload, {
+  await queue.schedule(QUEUE_NAME, cron, payload, {
     tz: 'America/Santo_Domingo',
+    key: mappingKey,
   });
-  logger.info(`[Queue] Cron schedule registered "${scheduleId}" with pattern "${cron}"`);
+  logger.info(`[Queue] Cron schedule registered queue="${QUEUE_NAME}" key="${mappingKey}" cron="${cron}"`);
 }
 
-export async function unscheduleCronSync(scheduleId: string): Promise<void> {
+export async function unscheduleCronSync(mappingKey: string): Promise<void> {
   const queue = await getQueue();
-  await queue.unschedule(scheduleId);
-  logger.info(`[Queue] Cron schedule removed: ${scheduleId}`);
+  await queue.unschedule(QUEUE_NAME, mappingKey);
+  logger.info(`[Queue] Cron schedule removed: queue="${QUEUE_NAME}" key="${mappingKey}"`);
 }
 
 export async function stopQueue(): Promise<void> {

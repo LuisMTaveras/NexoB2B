@@ -3,14 +3,6 @@ import { scheduleCronSync, unscheduleCronSync, SyncJobPayload } from './queue';
 import { logger } from './logger';
 
 /**
- * Generates a stable, unique schedule ID for a mapping.
- * Used to idempotently register/update/remove schedules.
- */
-function scheduleId(mappingId: string): string {
-  return `sync:${mappingId}`;
-}
-
-/**
  * Registers all active cron schedules from the database into pg-boss.
  * Should be called on server startup.
  */
@@ -41,7 +33,7 @@ export async function loadSchedules(): Promise<void> {
     };
 
     try {
-      await scheduleCronSync(scheduleId(mapping.id), mapping.syncCron, payload);
+      await scheduleCronSync(mapping.id, mapping.syncCron, payload);
     } catch (err: any) {
       logger.error(`[Scheduler] Failed to register schedule for mapping ${mapping.id}: ${err.message}`);
     }
@@ -62,10 +54,10 @@ export async function upsertMappingSchedule(mappingId: string): Promise<void> {
 
   if (!mapping) return;
 
+  // If scheduling is disabled or no cron expression, remove existing schedule
   if (!mapping.isScheduled || !mapping.syncCron || !mapping.isActive) {
-    // Try to remove any existing schedule
     try {
-      await unscheduleCronSync(scheduleId(mappingId));
+      await unscheduleCronSync(mappingId);
     } catch { /* ignore if it didn't exist */ }
     return;
   }
@@ -78,7 +70,7 @@ export async function upsertMappingSchedule(mappingId: string): Promise<void> {
     triggeredBy: 'scheduler',
   };
 
-  await scheduleCronSync(scheduleId(mappingId), mapping.syncCron, payload);
+  await scheduleCronSync(mappingId, mapping.syncCron, payload);
 }
 
 /**
@@ -86,7 +78,7 @@ export async function upsertMappingSchedule(mappingId: string): Promise<void> {
  */
 export async function removeMappingSchedule(mappingId: string): Promise<void> {
   try {
-    await unscheduleCronSync(scheduleId(mappingId));
+    await unscheduleCronSync(mappingId);
     logger.info(`[Scheduler] Removed schedule for mapping ${mappingId}`);
   } catch {
     // Schedule may not have existed — safe to ignore

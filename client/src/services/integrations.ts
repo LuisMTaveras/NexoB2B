@@ -60,6 +60,7 @@ export const integrationsApi = {
   sync: (id: string, resource = 'ALL') => api.post(`/integrations/${id}/sync`, { resource }),
   jobs: (id: string, params?: any) => api.get(`/integrations/${id}/jobs`, { params }),
   jobLogs: (id: string, jobId: string, params?: any) => api.get(`/integrations/${id}/jobs/${jobId}/logs`, { params }),
+  getQueueStatus: () => api.get<{ success: boolean; data: any }>('/integrations/queue/status'),
 }
 
 export const RESOURCE_LABELS: Record<SyncResource, string> = {
