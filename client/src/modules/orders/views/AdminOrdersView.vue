@@ -53,6 +53,7 @@
               <th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-400)]">Fecha</th>
               <th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-400)] text-right">Total</th>
               <th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-400)]">Estado</th>
+              <th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-400)]">Aprobado Por</th>
               <th class="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-[var(--color-brand-400)] text-center">Acciones</th>
             </tr>
           </thead>
@@ -124,8 +125,18 @@
               </td>
               <td class="px-6 py-5">
                 <span :class="getStatusClass(order.status)" class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
-                  {{ order.status }}
+                  {{ formatStatus(order.status) }}
                 </span>
+              </td>
+              <td class="px-6 py-5">
+                <div class="flex flex-col gap-0.5">
+                  <span v-if="order.approvedBy" class="text-[11px] font-bold text-emerald-700">
+                    {{ order.approvedBy.firstName }} {{ order.approvedBy.lastName }}
+                  </span>
+                  <span v-else-if="order.status === 'PENDING_APPROVAL'" class="text-[11px] font-bold text-amber-500">Pendiente</span>
+                  <span v-else-if="order.status === 'REJECTED'" class="text-[11px] font-bold text-red-500">Rechazado</span>
+                  <span v-else class="text-[11px] text-slate-300">—</span>
+                </div>
               </td>
               <td class="px-6 py-5">
                 <div class="flex items-center justify-center gap-2">
@@ -134,11 +145,6 @@
                     class="p-2 rounded-xl text-[var(--color-brand-500)] hover:text-[var(--color-accent-600)] hover:bg-[var(--color-accent-50)] transition-all border border-transparent hover:border-[var(--color-accent-100)]"
                   >
                     <Icon icon="mdi:eye-outline" class="w-5 h-5" />
-                  </button>
-                  <button 
-                    class="p-2 rounded-xl text-[var(--color-brand-500)] hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent hover:border-indigo-100"
-                  >
-                    <Icon icon="mdi:sync" class="w-5 h-5" />
                   </button>
                 </div>
               </td>
@@ -187,6 +193,57 @@
                    <p class="text-3xl font-black text-blue-600">{{ formatCurrency(selectedOrder.total, selectedOrder.currency) }}</p>
                 </div>
              </div>
+
+             <!-- Traceability Section -->
+             <div class="mt-6 pt-6 border-t border-slate-50">
+               <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Trazabilidad del Pedido</p>
+               <div class="space-y-3">
+                 <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
+                   <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                     <Icon icon="mdi:cart-plus" class="w-4 h-4" />
+                   </div>
+                   <div>
+                     <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Solicitado por</p>
+                     <p class="text-sm font-bold text-slate-800">
+                       {{ selectedOrder.submittedBy ? `${selectedOrder.submittedBy.firstName} ${selectedOrder.submittedBy.lastName}` : 'ERP / Sistema' }}
+                     </p>
+                     <p v-if="selectedOrder.submittedBy" class="text-[10px] text-slate-400">{{ selectedOrder.submittedBy.email }}</p>
+                   </div>
+                 </div>
+
+                 <div v-if="selectedOrder.approvedBy" class="flex items-start gap-3 p-3 rounded-xl bg-emerald-50">
+                   <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                     <Icon icon="mdi:check-circle" class="w-4 h-4" />
+                   </div>
+                   <div>
+                     <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Aprobado por</p>
+                     <p class="text-sm font-bold text-slate-800">{{ selectedOrder.approvedBy.firstName }} {{ selectedOrder.approvedBy.lastName }}</p>
+                     <p class="text-[10px] text-slate-400">{{ selectedOrder.approvedBy.email }}</p>
+                     <p v-if="selectedOrder.approvedAt" class="text-[10px] text-slate-400 mt-0.5">{{ formatDate(selectedOrder.approvedAt) }}</p>
+                   </div>
+                 </div>
+
+                 <div v-if="selectedOrder.status === 'PENDING_APPROVAL'" class="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                   <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                     <Icon icon="mdi:clock-alert-outline" class="w-4 h-4" />
+                   </div>
+                   <div>
+                     <p class="text-[10px] font-black text-amber-600 uppercase tracking-widest">En espera de aprobación</p>
+                     <p class="text-xs text-slate-500 mt-0.5">Un administrador de la cuenta debe revisar este pedido.</p>
+                   </div>
+                 </div>
+
+                 <div v-if="selectedOrder.status === 'REJECTED'" class="flex items-start gap-3 p-3 rounded-xl bg-rose-50 border border-rose-100">
+                   <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                     <Icon icon="mdi:close-circle" class="w-4 h-4" />
+                   </div>
+                   <div>
+                     <p class="text-[10px] font-black text-rose-600 uppercase tracking-widest">Rechazado</p>
+                     <p class="text-xs font-medium text-slate-700 mt-0.5">{{ selectedOrder.rejectedReason || 'Sin motivo especificado' }}</p>
+                   </div>
+                 </div>
+               </div>
+             </div>
           </div>
        </div>
     </div>
@@ -205,12 +262,12 @@ const search = ref('')
 const selectedOrder = ref<any>(null)
 
 const stats = computed(() => {
-  const open = orders.value.filter(o => o.status === 'OPEN').length
+  const pendingApproval = orders.value.filter(o => o.status === 'PENDING_APPROVAL').length
   const totalVal = orders.value.reduce((sum, o) => sum + Number(o.total), 0)
   
   return [
     { label: 'Total Pedidos', value: orders.value.length, icon: 'mdi:cart-multiple', color: 'blue' },
-    { label: 'Pendientes', value: open, icon: 'mdi:clock-alert-outline', color: 'amber' },
+    { label: 'Pend. Aprobación', value: pendingApproval, icon: 'mdi:clock-alert-outline', color: 'amber' },
     { label: 'Valor Total', value: formatCurrency(totalVal, 'DOP'), icon: 'mdi:cash-multiple', color: 'green' },
     { label: 'Clientes Activos', value: new Set(orders.value.map(o => o.customerId)).size, icon: 'mdi:account-badge-outline', color: 'indigo' },
   ]
@@ -281,13 +338,28 @@ function formatCurrency(val: number | string, currency: string = 'DOP') {
 
 function getStatusClass(status: string) {
   switch (status) {
-    case 'OPEN':      return 'bg-amber-100 text-amber-700'
-    case 'CONFIRMED': return 'bg-blue-100 text-blue-700'
-    case 'SHIPPED':   return 'bg-indigo-100 text-indigo-700'
-    case 'DELIVERED': return 'bg-green-100 text-green-700'
-    case 'CANCELLED': return 'bg-red-100 text-red-700'
-    default:          return 'bg-slate-100 text-slate-700'
+    case 'PENDING_APPROVAL': return 'bg-amber-100 text-amber-700 border border-amber-200'
+    case 'OPEN':             return 'bg-sky-100 text-sky-700'
+    case 'CONFIRMED':        return 'bg-blue-100 text-blue-700'
+    case 'SHIPPED':          return 'bg-indigo-100 text-indigo-700'
+    case 'DELIVERED':        return 'bg-green-100 text-green-700'
+    case 'CANCELLED':        return 'bg-slate-100 text-slate-500'
+    case 'REJECTED':         return 'bg-rose-100 text-rose-700 border border-rose-200'
+    default:                 return 'bg-slate-100 text-slate-700'
   }
+}
+
+function formatStatus(status: string) {
+  const labels: Record<string, string> = {
+    PENDING_APPROVAL: 'Pend. Aprobación',
+    OPEN: 'Abierto',
+    CONFIRMED: 'Confirmado',
+    SHIPPED: 'Enviado',
+    DELIVERED: 'Entregado',
+    CANCELLED: 'Cancelado',
+    REJECTED: 'Rechazado',
+  }
+  return labels[status] ?? status
 }
 
 onMounted(fetchOrders)

@@ -63,7 +63,7 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
 
   try {
     const { customerId } = req.params;
-    const { email, firstName, lastName, role } = req.body;
+    const { email, firstName, lastName, role, requiresApproval } = req.body;
     const userPayload = (req as any).user;
     
     // DEBUG LOG
@@ -135,6 +135,7 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
           firstName,
           lastName,
           role: role || 'BUYER',
+          requiresApproval: role === 'ADMIN' ? (requiresApproval ?? false) : false,
           status: 'INVITED',
           passwordHash: '',
         }

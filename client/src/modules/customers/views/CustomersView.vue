@@ -343,6 +343,30 @@
                         <p class="text-[9px] text-slate-400 mt-1 leading-tight">Solo gestión de pedidos e inventario.</p>
                       </div>
                    </div>
+
+                 <!-- Approval toggle: visible only for ADMIN -->
+                 <Transition name="fade">
+                   <div v-if="inviteForm.role === 'ADMIN'" class="p-4 rounded-2xl border-2 border-amber-100 bg-amber-50/50 flex items-center justify-between gap-4">
+                     <div class="flex items-center gap-3">
+                       <div class="p-2 rounded-xl bg-amber-100 text-amber-600">
+                         <Icon icon="mdi:clipboard-check-outline" class="w-5 h-5" />
+                       </div>
+                       <div>
+                         <p class="text-xs font-bold text-slate-800">Requiere aprobación de pedidos</p>
+                         <p class="text-[10px] text-slate-500 mt-0.5">Si está activo, sus pedidos también pasarán por revisión antes de procesarse.</p>
+                       </div>
+                     </div>
+                     <button
+                       type="button"
+                       @click="inviteForm.requiresApproval = !inviteForm.requiresApproval"
+                       class="relative w-12 h-6 rounded-full transition-colors duration-300 shrink-0 focus:outline-none"
+                       :class="inviteForm.requiresApproval ? 'bg-amber-500' : 'bg-slate-200'"
+                     >
+                       <div class="absolute top-[2px] w-5 h-5 rounded-full bg-white transition-all duration-300 shadow-sm"
+                            :class="inviteForm.requiresApproval ? 'left-[26px]' : 'left-[2px]'"></div>
+                     </button>
+                   </div>
+                 </Transition>
                 </div>
 
                 <div v-if="inviteError" class="p-4 bg-rose-50 text-rose-700 text-xs rounded-2xl border border-rose-100 animate-in shake duration-300 flex gap-3 items-center">
@@ -389,7 +413,8 @@ const inviteForm = reactive({
   email: '',
   firstName: '',
   lastName: '',
-  role: 'BUYER'
+  role: 'BUYER',
+  requiresApproval: false
 })
 
 const filteredCustomers = computed(() => {
@@ -457,7 +482,7 @@ async function inviteUser() {
   try {
     await api.post(`/customers/${selectedCustomer.value.id}/invite`, inviteForm)
     showInviteModal.value = false
-    Object.assign(inviteForm, { email: '', firstName: '', lastName: '', role: 'BUYER' })
+    Object.assign(inviteForm, { email: '', firstName: '', lastName: '', role: 'BUYER', requiresApproval: false })
     // Refresh details
     selectCustomer(selectedCustomer.value)
     ui.alert('¡Éxito!', 'La invitación ha sido enviada correctamente.', 'success')

@@ -73,11 +73,13 @@ enum InvoiceStatus {
 }
 
 enum OrderStatus {
+  PENDING_APPROVAL
   OPEN
   CONFIRMED
   SHIPPED
   DELIVERED
   CANCELLED
+  REJECTED
 }
 
 enum TicketStatus {
@@ -313,6 +315,7 @@ model CustomerUser {
   passwordHash String
   role         CustomerRole @default(BUYER)
   status       UserStatus   @default(INVITED)
+  requiresApproval Boolean  @default(false)
   lastLoginAt  DateTime?
   lastActiveAt DateTime?
   createdAt    DateTime     @default(now())
@@ -320,6 +323,7 @@ model CustomerUser {
 
   customer Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
   orders   Order[]             @relation("SubmittedBy")
+  approvedOrders Order[]       @relation("ApprovedBy")
   tickets  Ticket[]            @relation("RaisedBy")
   tokens   VerificationToken[]
 
@@ -464,11 +468,15 @@ model Order {
   syncedAt      DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
-  submittedById String?
+  submittedById  String?
+  approvedById   String?
+  approvedAt     DateTime?
+  rejectedReason String?
 
   company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer    Customer      @relation(fields: [customerId], references: [id])
   submittedBy CustomerUser? @relation("SubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  CustomerUser? @relation("ApprovedBy", fields: [approvedById], references: [id])
   items       OrderItem[]
 
   @@unique([companyId, externalId])

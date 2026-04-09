@@ -4,6 +4,7 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import { sendSuccess, sendNotFound } from '../../utils/apiResponse';
 import { prisma } from '../../lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
+import { logAction } from '../../lib/audit';
 
 const router = Router();
 
@@ -184,7 +185,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
 
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
-    select: { customerId: true, customer: { select: { internalCode: true } } }
+    select: { customerId: true, role: true, requiresApproval: true, customer: { select: { internalCode: true } }, firstName: true, lastName: true, email: true }
   });
 
   if (!customerUser) return sendNotFound(res, 'Usuario de cliente no encontrado');
@@ -212,6 +213,12 @@ router.post('/orders', asyncHandler(async (req, res) => {
     };
   });
 
+  // Determinar status basado en rol y configuración
+  const needsApproval =
+    customerUser.role === 'BUYER' ||
+    (customerUser.role === 'ADMIN' && customerUser.requiresApproval);
+  const orderStatus = needsApproval ? 'PENDING_APPROVAL' : 'OPEN';
+
   // Crear id consecutivo interno básico temporal
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const randNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
@@ -224,7 +231,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
       submittedById: req.user!.userId,
       number: numberStr,
       date: new Date(),
-      status: 'OPEN',
+      status: orderStatus,
       total,
       currency,
       notes,
@@ -234,6 +241,28 @@ router.post('/orders', asyncHandler(async (req, res) => {
     },
     include: {
       items: true
+    }
+  });
+
+  // Audit log
+  await logAction({
+    companyId,
+    userEmail: customerUser.email,
+    action: 'ORDER_SUBMITTED',
+    resource: 'Order',
+    resourceId: order.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: {
+      orderNumber: order.number,
+      status: orderStatus,
+      total: order.total,
+      currency: order.currency,
+      submittedBy: {
+        name: `${customerUser.firstName} ${customerUser.lastName}`,
+        email: customerUser.email,
+        role: customerUser.role,
+      }
     }
   });
 
@@ -291,6 +320,118 @@ router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
   });
 
   return sendSuccess(res, newOrder, 'Re-pedido creado con éxito');
+}));
+
+/**
+ * PATCH /api/portal/orders/:id/approve
+ * Approve a pending order (ADMIN of the same customer only)
+ */
+router.patch('/orders/:id/approve', asyncHandler(async (req, res) => {
+  const approver = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true, role: true, firstName: true, lastName: true, email: true }
+  });
+
+  if (!approver || approver.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Solo los administradores pueden aprobar pedidos.' });
+  }
+
+  const order = await prisma.order.findFirst({
+    where: { id: req.params.id, customerId: approver.customerId, companyId: req.companyId! },
+    include: { submittedBy: { select: { firstName: true, lastName: true, email: true } } }
+  });
+
+  if (!order) return sendNotFound(res, 'Pedido no encontrado');
+  if ((order as any).status !== 'PENDING_APPROVAL') {
+    return res.status(400).json({ success: false, error: 'El pedido no está pendiente de aprobación.' });
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      status: 'OPEN',
+      approvedById: req.user!.userId,
+      approvedAt: new Date()
+    } as any
+  });
+
+  // Audit
+  await logAction({
+    companyId: req.companyId!,
+    userEmail: approver.email,
+    action: 'ORDER_APPROVED',
+    resource: 'Order',
+    resourceId: order.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: {
+      orderNumber: order.number,
+      approvedBy: { name: `${approver.firstName} ${approver.lastName}`, email: approver.email },
+      submittedBy: order.submittedBy ? {
+        name: `${(order as any).submittedBy.firstName} ${(order as any).submittedBy.lastName}`,
+        email: (order as any).submittedBy.email
+      } : null
+    }
+  });
+
+  return sendSuccess(res, updated, 'Pedido aprobado exitosamente.');
+}));
+
+/**
+ * PATCH /api/portal/orders/:id/reject
+ * Reject a pending order (ADMIN of the same customer only)
+ */
+router.patch('/orders/:id/reject', asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+
+  const rejector = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true, role: true, firstName: true, lastName: true, email: true }
+  });
+
+  if (!rejector || rejector.role !== 'ADMIN') {
+    return res.status(403).json({ success: false, error: 'Solo los administradores pueden rechazar pedidos.' });
+  }
+
+  const order = await prisma.order.findFirst({
+    where: { id: req.params.id, customerId: rejector.customerId, companyId: req.companyId! },
+    include: { submittedBy: { select: { firstName: true, lastName: true, email: true } } }
+  });
+
+  if (!order) return sendNotFound(res, 'Pedido no encontrado');
+  if ((order as any).status !== 'PENDING_APPROVAL') {
+    return res.status(400).json({ success: false, error: 'El pedido no puede ser rechazado en su estado actual.' });
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      status: 'REJECTED',
+      rejectedReason: reason || 'Sin motivo especificado'
+    } as any
+  });
+
+  // Audit
+  await logAction({
+    companyId: req.companyId!,
+    userEmail: rejector.email,
+    action: 'ORDER_REJECTED',
+    resource: 'Order',
+    resourceId: order.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: {
+      orderNumber: order.number,
+      reason: reason || 'Sin motivo especificado',
+      rejectedBy: { name: `${rejector.firstName} ${rejector.lastName}`, email: rejector.email },
+      submittedBy: order.submittedBy ? {
+        name: `${(order as any).submittedBy.firstName} ${(order as any).submittedBy.lastName}`,
+        email: (order as any).submittedBy.email
+      } : null
+    }
+  });
+
+  return sendSuccess(res, updated, 'Pedido rechazado.');
 }));
 
 /**

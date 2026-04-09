@@ -28,9 +28,9 @@ router.get('/', asyncHandler(async (req, res) => {
     include: {
       customer: { select: { name: true, internalCode: true } },
       submittedBy: { select: { firstName: true, lastName: true, email: true } },
+      approvedBy: { select: { firstName: true, lastName: true, email: true } },
       _count: { select: { items: true } }
     } as any,
-
     orderBy: { createdAt: 'desc' }
   });
 
@@ -61,6 +61,9 @@ router.get('/export', asyncHandler(async (req, res) => {
     Total: o.total,
     Moneda: o.currency,
     SolicitadoPor: `${o.submittedBy?.firstName || ''} ${o.submittedBy?.lastName || ''}`,
+    AprobadoPor: o.approvedBy ? `${o.approvedBy.firstName} ${o.approvedBy.lastName}` : '',
+    FechaAprobacion: o.approvedAt ? new Date(o.approvedAt).toISOString() : '',
+    MotivoRechazo: o.rejectedReason || '',
   }));
 
   // Audit export

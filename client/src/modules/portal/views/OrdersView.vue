@@ -126,15 +126,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+const isAdmin = computed(() => (auth.user as any)?.role === 'ADMIN')
 
 const orders = ref<any[]>([])
 const loading = ref(true)
 const expandedOrder = ref<string | null>(null)
 const reordering = ref<string | null>(null)
-
+const approving = ref<string | null>(null)
+const rejecting = ref(false)
+const showRejectModal = ref(false)
+const rejectTarget = ref<any>(null)
+const rejectReason = ref('')
 
 const fetchOrders = async () => {
   loading.value = true
@@ -150,6 +159,38 @@ const fetchOrders = async () => {
 
 const toggleOrder = (id: string) => {
   expandedOrder.value = expandedOrder.value === id ? null : id
+}
+
+const approveOrder = async (order: any) => {
+  approving.value = order.id
+  try {
+    await api.patch(`/portal/orders/${order.id}/approve`)
+    await fetchOrders()
+  } catch (err: any) {
+    alert(err.response?.data?.error || 'No se pudo aprobar el pedido.')
+  } finally {
+    approving.value = null
+  }
+}
+
+const rejectOrder = (order: any) => {
+  rejectTarget.value = order
+  rejectReason.value = ''
+  showRejectModal.value = true
+}
+
+const confirmReject = async () => {
+  if (!rejectTarget.value) return
+  rejecting.value = true
+  try {
+    await api.patch(`/portal/orders/${rejectTarget.value.id}/reject`, { reason: rejectReason.value })
+    showRejectModal.value = false
+    await fetchOrders()
+  } catch (err: any) {
+    alert(err.response?.data?.error || 'No se pudo rechazar el pedido.')
+  } finally {
+    rejecting.value = false
+  }
 }
 
 const reorderOrder = async (order: any) => {
@@ -181,44 +222,52 @@ const formatCurrency = (val: number | string) => {
 
 const getStatusIcon = (status: string) => {
   switch (status) {
-    case 'OPEN': return 'mdi:cart-outline'
-    case 'CONFIRMED': return 'mdi:check-circle-outline'
-    case 'SHIPPED': return 'mdi:truck-fast-outline'
-    case 'DELIVERED': return 'mdi:package-variant'
-    case 'CANCELLED': return 'mdi:close-circle-outline'
+    case 'PENDING_APPROVAL': return 'mdi:clock-alert-outline'
+    case 'OPEN':             return 'mdi:cart-outline'
+    case 'CONFIRMED':        return 'mdi:check-circle-outline'
+    case 'SHIPPED':          return 'mdi:truck-fast-outline'
+    case 'DELIVERED':        return 'mdi:package-variant'
+    case 'CANCELLED':        return 'mdi:close-circle-outline'
+    case 'REJECTED':         return 'mdi:close-circle'
     default: return 'mdi:file-document-outline'
   }
 }
 
 const getStatusIconClass = (status: string) => {
   switch (status) {
-    case 'OPEN': return 'bg-blue-50 text-blue-500 border-blue-100'
-    case 'CONFIRMED': return 'bg-emerald-50 text-emerald-500 border-emerald-100'
-    case 'SHIPPED': return 'bg-purple-50 text-purple-500 border-purple-100'
-    case 'DELIVERED': return 'bg-indigo-50 text-indigo-500 border-indigo-100'
-    case 'CANCELLED': return 'bg-rose-50 text-rose-500 border-rose-100'
+    case 'PENDING_APPROVAL': return 'bg-amber-50 text-amber-500 border-amber-200'
+    case 'OPEN':             return 'bg-blue-50 text-blue-500 border-blue-100'
+    case 'CONFIRMED':        return 'bg-emerald-50 text-emerald-500 border-emerald-100'
+    case 'SHIPPED':          return 'bg-purple-50 text-purple-500 border-purple-100'
+    case 'DELIVERED':        return 'bg-indigo-50 text-indigo-500 border-indigo-100'
+    case 'CANCELLED':        return 'bg-slate-50 text-slate-400 border-slate-100'
+    case 'REJECTED':         return 'bg-rose-50 text-rose-500 border-rose-100'
     default: return 'bg-slate-50 text-slate-500 border-slate-100'
   }
 }
 
 const getStatusBadgeClass = (status: string) => {
   switch (status) {
-    case 'OPEN': return 'bg-blue-50 text-blue-700 border-blue-200'
-    case 'CONFIRMED': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-    case 'SHIPPED': return 'bg-purple-50 text-purple-700 border-purple-200'
-    case 'DELIVERED': return 'bg-indigo-50 text-indigo-700 border-indigo-200'
-    case 'CANCELLED': return 'bg-rose-50 text-rose-700 border-rose-200'
+    case 'PENDING_APPROVAL': return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'OPEN':             return 'bg-blue-50 text-blue-700 border-blue-200'
+    case 'CONFIRMED':        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'SHIPPED':          return 'bg-purple-50 text-purple-700 border-purple-200'
+    case 'DELIVERED':        return 'bg-indigo-50 text-indigo-700 border-indigo-200'
+    case 'CANCELLED':        return 'bg-slate-50 text-slate-500 border-slate-200'
+    case 'REJECTED':         return 'bg-rose-50 text-rose-700 border-rose-200'
     default: return 'bg-slate-50 text-slate-700 border-slate-200'
   }
 }
 
 const mapStatus = (status: string) => {
   const map: any = {
+    PENDING_APPROVAL: 'Pend. Aprobación',
     OPEN: 'Abierto / En Revisión',
     CONFIRMED: 'Confirmado',
     SHIPPED: 'En Tránsito',
     DELIVERED: 'Entregado',
-    CANCELLED: 'Cancelado'
+    CANCELLED: 'Cancelado',
+    REJECTED: 'Rechazado'
   }
   return map[status] || status
 }
