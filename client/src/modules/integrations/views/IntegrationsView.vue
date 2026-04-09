@@ -403,7 +403,20 @@
                 <div>
                   <div class="flex items-center justify-between mb-2">
                     <label class="label mb-0">Mapeo de campos</label>
-                    <span class="text-xs text-[var(--color-brand-400)]">campo interno → campo del ERP (o =VALOR_FIJO)</span>
+                    <div class="text-[10px] text-[var(--color-brand-400)] text-right group relative z-50">
+                      <span class="border-b border-dashed border-[var(--color-brand-300)] cursor-help">Formatos Avanzados</span>
+                      
+                      <!-- Tooltip flotante -->
+                      <div class="absolute bottom-full right-0 mb-2 w-72 p-3 bg-slate-800 text-white rounded-lg shadow-xl invisible opacity-0 translate-y-2 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 text-left transition-all pointer-events-none">
+                        <strong class="text-[var(--color-accent-300)] block mb-1">Valores y Formatos Soportados:</strong>
+                        <ul class="space-y-1">
+                          <li>• <span class="font-mono text-emerald-300">campo.id</span> : Ruta JSON</li>
+                          <li>• <span class="font-mono text-emerald-300">=VALOR</span> : Texto estático (Fijo)</li>
+                          <li>• <span class="font-mono text-emerald-300">{{nombre}} - {{pais}}</span> : Plantilla interpolada</li>
+                          <li>• <span class="font-mono text-emerald-300">__eval: record.id + "_"</span> : Código JS (Usa 'record')</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                   <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
                     <div

@@ -2,6 +2,7 @@ import pLimit from 'p-limit';
 import { prisma } from '../../lib/prisma';
 import { buildErpClient, resolvePath, PaginationConfig } from '../../lib/erpClient';
 import { logger } from '../../lib/logger';
+import { EmailService } from '../../lib/email.service';
 import {
   generateProductCode,
   generateCustomerCode,
@@ -30,13 +31,35 @@ interface MappingConfig {
  *   - "fieldName"         → extract from record
  *   - "=CONSTANT"         → literal value
  *   - "parent.child"      → nested path
- *   - "__concat:a,b, "   → concat multiple fields with separator
+ *   - "__concat:a,b, "    → concat multiple fields with separator
+ *   - "{{field1}} text"   → string template with values
+ *   - "__eval: JS logic"  → advanced transformation via JavaScript
  */
 function resolveField(record: Record<string, unknown>, externalField: string): unknown {
   if (!externalField) return undefined;
 
   // Constant value
   if (externalField.startsWith('=')) return externalField.slice(1);
+
+  // Advanced Eval Script: "__eval: Number(record.price) * 1.18"
+  if (externalField.startsWith('__eval:')) {
+    const expression = externalField.slice(7).trim();
+    try {
+      const fn = new Function('record', `return (${expression});`);
+      return fn(record);
+    } catch (e) {
+      logger.warn(`Failed to eval mapping logic: ${expression}`, { error: String(e) });
+      return undefined;
+    }
+  }
+
+  // String Template: "Hola {{user.name}} de {{company.city}}"
+  if (externalField.includes('{{') && externalField.includes('}}')) {
+    return externalField.replace(/{{([^}]+)}}/g, (_, path) => {
+      const val = resolvePath(record, path.trim());
+      return val !== undefined && val !== null ? String(val) : '';
+    });
+  }
 
   // Concat: "__concat:field1,field2, "
   if (externalField.startsWith('__concat:')) {
@@ -631,6 +654,44 @@ export async function runSyncJob(
       await prisma.integrationSyncLog.create({
         data: { jobId, level: 'error', message: `Fatal error: ${err.message}` },
       });
+      
+      // Feature 2: Notifications System
+      try {
+        const integration = await prisma.integration.findUnique({ where: { id: integrationId } });
+        if (integration) {
+          // Find an admin that has an email configuration set up to act as the sender
+          const senderAdmin = await prisma.internalUser.findFirst({
+            where: { companyId, role: 'ADMIN', status: 'ACTIVE', emailConfig: { isNot: null } },
+            select: { id: true }
+          });
+
+          if (senderAdmin) {
+            const template = EmailService.getSyncFailureTemplate({
+                integrationName: integration.name,
+                resource: mapping.resource,
+                errorSummary: err.message,
+                jobId,
+                time: new Date().toLocaleString()
+            });
+
+            // Get all active admins to receive the notification
+            const allAdmins = await prisma.internalUser.findMany({
+               where: { companyId, role: 'ADMIN', status: 'ACTIVE' },
+               select: { email: true }
+            });
+
+            for (const admin of allAdmins) {
+               await EmailService.sendUserEmail(senderAdmin.id, {
+                  to: admin.email,
+                  subject: `⚠️ Alerta Crítica: Sincronización Fallida - ${integration.name}`,
+                  html: template
+               });
+            }
+          }
+        }
+      } catch (notifyErr: any) {
+        logger.error('Failed to send sync failure notification', { error: notifyErr.message });
+      }
     }
   })();
 

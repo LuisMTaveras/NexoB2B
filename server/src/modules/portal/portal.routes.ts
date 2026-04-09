@@ -149,4 +149,94 @@ router.get('/invoices', asyncHandler(async (req, res) => {
   return sendSuccess(res, invoices);
 }));
 
+/**
+ * GET /api/portal/orders
+ * List of orders created by this customer
+ */
+router.get('/orders', asyncHandler(async (req, res) => {
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const orders = await prisma.order.findMany({
+    where: { customerId: customerUser.customerId, companyId: req.companyId! },
+    include: {
+      items: true
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return sendSuccess(res, orders);
+}));
+
+/**
+ * POST /api/portal/orders
+ * Submit shopping cart and create an open Order
+ */
+router.post('/orders', asyncHandler(async (req, res) => {
+  const { items, notes } = req.body;
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, error: 'El carrito está vacío' });
+  }
+
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true, customer: { select: { internalCode: true } } }
+  });
+
+  if (!customerUser) return sendNotFound(res, 'Usuario de cliente no encontrado');
+
+  const customerId = customerUser.customerId;
+  const companyId = req.companyId!;
+
+  // Calcular totales
+  let total = new Decimal(0);
+  const currency = items[0]?.currency || 'DOP';
+
+  const orderItemsData = items.map((item: any) => {
+    const qty = new Decimal(item.quantity);
+    const price = new Decimal(item.price);
+    const rowTotal = qty.mul(price);
+    total = total.add(rowTotal);
+
+    return {
+      productId: item.id,
+      sku: item.sku,
+      name: item.name,
+      quantity: qty,
+      unitPrice: price,
+      total: rowTotal
+    };
+  });
+
+  // Crear id consecutivo interno básico temporal
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  const numberStr = `ORD-${dateStr}-${randNum}`;
+
+  const order = await prisma.order.create({
+    data: {
+      companyId,
+      customerId,
+      number: numberStr,
+      date: new Date(),
+      status: 'OPEN',
+      total,
+      currency,
+      notes,
+      items: {
+        create: orderItemsData
+      }
+    },
+    include: {
+      items: true
+    }
+  });
+
+  return sendSuccess(res, order);
+}));
+
 export default router;

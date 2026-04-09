@@ -1,114 +1,131 @@
 <template>
-  <div class="min-h-screen flex bg-transparent font-sans">
-    <!-- Sidebar -->
-    <aside
-      class="w-64 bg-white/70 backdrop-blur-2xl flex flex-col flex-shrink-0 fixed inset-y-0 left-0 z-30 transition-transform duration-300 border-r border-white/80 shadow-[10px_0_30px_-15px_rgba(15,23,42,0.1)]"
-      :class="{ '-translate-x-full': !sidebarOpen, 'translate-x-0': sidebarOpen }"
-    >
-      <!-- Logo & Company Branding -->
-      <div class="flex items-center gap-3 px-5 py-6 border-b border-[var(--color-brand-200)]/50">
-        <div class="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center shadow-lg overflow-hidden border border-white/20">
-          <img v-if="auth.company?.logo" :src="auth.company.logo" class="w-full h-full object-cover" />
-          <span v-else class="text-white font-black text-lg">N</span>
+  <div class="min-h-screen flex flex-col bg-[var(--color-brand-50)]/30 font-sans">
+    <!-- Top E-commerce Navigation -->
+    <header class="bg-white/70 backdrop-blur-2xl border-b border-[var(--color-brand-100)] shadow-[0_10px_30px_-15px_rgba(15,23,42,0.1)] sticky top-0 z-30">
+      <!-- Topmost small strip (Optional: for Balance/Agent) -->
+      <div class="bg-[var(--color-brand-900)] text-white/80 text-[10px] uppercase tracking-widest py-1.5 px-4 sm:px-8 flex justify-between items-center font-bold">
+        <div class="flex items-center gap-2">
+           <Icon icon="mdi:headset" class="w-3.5 h-3.5" />
+           <span>Ejecutivo de Cuenta: Portal</span>
         </div>
-        <div class="overflow-hidden">
-          <p class="text-[var(--color-brand-900)] font-black text-sm leading-none tracking-tight truncate">{{ auth.company?.name || 'NexoB2B' }}</p>
-          <p class="text-[var(--color-brand-500)] text-[10px] uppercase font-bold mt-1 tracking-widest opacity-70">Portal de Clientes</p>
+        <div class="flex items-center gap-2">
+           <Icon icon="mdi:clock-outline" class="w-3.5 h-3.5" />
+           <span>Disponibilidad 24/7 B2B</span>
+        </div>
+      </div>
+      
+      <!-- Main Navbar -->
+      <div class="px-4 sm:px-8 h-20 flex items-center justify-between gap-6 relative">
+        <!-- Logo -->
+        <div class="flex items-center gap-4 z-10 shrink-0">
+           <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[var(--color-accent-400)] to-[var(--color-accent-600)] flex items-center justify-center shadow-md border border-[var(--color-accent-400)]/50 overflow-hidden ring-4 ring-white">
+             <img v-if="auth.company?.logo" :src="auth.company.logo" class="w-full h-full object-cover" />
+             <span v-else class="text-white font-black text-xl">N</span>
+           </div>
+           <div>
+             <p class="text-[var(--color-brand-900)] font-black text-xl leading-none tracking-tight">{{ auth.company?.name || 'NexoB2B Store' }}</p>
+             <p class="text-[var(--color-accent-600)] text-[9px] uppercase font-black tracking-widest mt-1">Corporate E-Commerce</p>
+           </div>
+        </div>
+
+        <!-- Horizontal Nav -->
+        <nav class="hidden lg:flex items-center gap-1.5 flex-1 justify-center absolute inset-x-0 h-full">
+          <RouterLink
+            v-for="item in navItems"
+            :key="item.to"
+            :to="item.to"
+            class="px-4 py-2.5 rounded-full text-[13px] font-bold text-[var(--color-brand-600)] hover:text-[var(--color-accent-600)] hover:bg-[var(--color-accent-50)]/50 transition-all group flex items-center gap-2 border border-transparent"
+            active-class="!text-[var(--color-accent-600)] bg-[var(--color-accent-50)] !border-[var(--color-accent-100)] shadow-sm shadow-[var(--color-accent-100)]/50"
+          >
+            <Icon :icon="item.icon" class="w-4 h-4 opacity-70 group-hover:scale-110 transition-transform" />
+            <span class="tracking-tight">{{ item.label }}</span>
+          </RouterLink>
+        </nav>
+
+        <!-- Right Side (User Profile) -->
+        <div class="flex items-center gap-4 z-10 shrink-0">
+           <div class="relative">
+             <button
+                @click="userMenuOpen = !userMenuOpen"
+                class="flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full bg-white/60 hover:bg-white border border-transparent hover:border-[var(--color-brand-200)]/50 transition-all font-medium group ring-2 ring-transparent focus:ring-[var(--color-accent-100)]"
+             >
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-accent-100)] to-[var(--color-accent-200)] flex items-center justify-center text-[var(--color-accent-700)] text-xs font-bold border border-[var(--color-accent-300)] shadow-sm border-2 border-white group-hover:scale-105 transition-transform">
+                  {{ initials }}
+                </div>
+                <div class="text-left hidden sm:block">
+                  <p class="text-xs font-semibold text-[var(--color-brand-900)] leading-tight group-hover:text-[var(--color-accent-600)] transition-colors uppercase tracking-tight">{{ auth.fullName }}</p>
+                  <p class="text-[10px] text-[var(--color-brand-500)] font-bold tracking-widest uppercase mt-0.5">{{ auth.user?.role === 'ADMIN' ? 'Administrador' : 'Comprador' }}</p>
+                </div>
+                <Icon icon="mdi:chevron-down" class="w-4 h-4 text-[var(--color-brand-400)] group-hover:text-[var(--color-brand-800)] transition-transform duration-300" :class="{ 'rotate-180': userMenuOpen }" />
+             </button>
+
+              <!-- Dropdown -->
+              <Transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="transform scale-95 opacity-0 translate-y-2"
+                enter-to-class="transform scale-100 opacity-100 translate-y-0"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="transform scale-100 opacity-100 translate-y-0"
+                leave-to-class="transform scale-95 opacity-0 translate-y-2"
+              >
+                <div v-if="userMenuOpen" class="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(15,23,42,0.15)] border border-[var(--color-brand-200)]/80 py-2 z-50">
+                  <div class="px-5 py-4 border-b border-[var(--color-brand-100)]">
+                    <p class="text-[10px] font-black uppercase text-[var(--color-accent-600)] tracking-widest mb-1">Mi Cuenta</p>
+                    <p class="text-sm font-semibold text-[var(--color-brand-900)] truncate tracking-tight">{{ auth.fullName }}</p>
+                    <p class="text-[11px] font-medium text-[var(--color-brand-500)] truncate">{{ auth.user?.email }}</p>
+                  </div>
+                  <div class="py-2 px-2">
+                    <button @click="auth.logout()" class="w-full text-left px-4 py-2.5 rounded-xl text-[13px] text-red-600 hover:bg-red-50 flex items-center gap-3 font-semibold transition-colors group">
+                      <Icon icon="mdi:logout" class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      Cerrar Sesión Segura
+                    </button>
+                  </div>
+                </div>
+              </Transition>
+           </div>
+           
+           <button class="lg:hidden p-2.5 text-[var(--color-brand-600)] bg-white/60 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-[var(--color-brand-200)]/50" @click="mobileMenuOpen = !mobileMenuOpen">
+              <Icon :icon="mobileMenuOpen ? 'mdi:close' : 'mdi:menu'" class="w-6 h-6" />
+           </button>
         </div>
       </div>
 
-      <!-- Navigation -->
-      <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-[var(--color-brand-700)] hover:text-indigo-600 hover:bg-indigo-50/50 transition-all duration-300 group"
-          active-class="!text-indigo-600 !bg-indigo-50 font-bold shadow-sm"
-        >
-          <Icon :icon="item.icon" class="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </nav>
-
-      <!-- Bottom Info -->
-      <div class="p-4 border-t border-slate-100 bg-slate-50/30">
-        <div class="flex items-center gap-3 p-3 rounded-xl bg-white/50 border border-white/80 shadow-sm">
-          <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
-            <Icon icon="mdi:person-check-outline" class="w-5 h-5" />
-          </div>
-          <div class="overflow-hidden">
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Tu Representante</p>
-            <p class="text-xs font-bold text-slate-700 truncate">Ventas Corporativas</p>
-          </div>
+      <!-- Mobile Menu (Drops down) -->
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0 -translate-y-4"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 -translate-y-4"
+      >
+        <div v-if="mobileMenuOpen" class="lg:hidden border-t border-[var(--color-brand-100)] bg-white/95 backdrop-blur-xl absolute w-full left-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] z-40">
+           <nav class="flex flex-col p-4 space-y-2">
+              <RouterLink
+                v-for="item in navItems"
+                :key="item.to"
+                :to="item.to"
+                @click="mobileMenuOpen = false"
+                class="flex items-center gap-3 px-5 py-4 rounded-xl text-[13px] font-semibold text-[var(--color-brand-700)] hover:text-[var(--color-accent-600)] hover:bg-[var(--color-accent-50)] transition-all border border-transparent"
+                active-class="!text-[var(--color-accent-600)] bg-[var(--color-accent-50)] border-[var(--color-accent-100)] shadow-sm"
+              >
+                <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.02)] border border-[var(--color-brand-100)] shrink-0">
+                  <Icon :icon="item.icon" class="w-4 h-4 opacity-70" />
+                </div>
+                {{ item.label }}
+              </RouterLink>
+           </nav>
         </div>
-      </div>
-    </aside>
+      </Transition>
+    </header>
 
-    <!-- Main content -->
-    <div class="flex-1 ml-64 flex flex-col min-h-screen">
-      <!-- Top bar -->
-      <header class="bg-white/40 backdrop-blur-xl border-b border-white/80 h-16 flex items-center px-8 sticky top-0 z-20 shadow-sm">
-        <button
-          class="md:hidden mr-4 text-slate-600"
-          @click="sidebarOpen = !sidebarOpen"
-        >
-          <Icon icon="mdi:menu" class="w-6 h-6" />
-        </button>
+    <!-- Main Content Container (Centered like an E-Commerce) -->
+    <main class="flex-1 w-full max-w-[1400px] mx-auto p-4 sm:p-8 relative pb-24">
+      <RouterView />
+    </main>
 
-        <h1 class="text-lg font-black text-slate-800 tracking-tight">{{ pageTitle }}</h1>
-
-        <div class="ml-auto flex items-center gap-4">
-          <!-- Quick Status -->
-          <div class="hidden lg:flex items-center gap-3 mr-4">
-             <div class="text-right">
-                <p class="text-[10px] font-black text-slate-400 uppercase">Balance Pendiente</p>
-                <p class="text-sm font-black text-slate-900 font-mono tracking-tighter">RD$ 0.00</p>
-             </div>
-             <div class="w-px h-8 bg-slate-200"></div>
-          </div>
-
-          <!-- User Menu -->
-          <div class="relative">
-            <button
-              @click="userMenuOpen = !userMenuOpen"
-              class="flex items-center gap-2 p-1.5 rounded-full hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200"
-            >
-              <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow-md">
-                {{ initials }}
-              </div>
-              <Icon icon="mdi:chevron-down" class="w-4 h-4 text-slate-400" :class="{ 'rotate-180': userMenuOpen }" />
-            </button>
-
-            <!-- Dropdown -->
-            <div v-if="userMenuOpen" class="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div class="px-4 py-3 border-b border-slate-50">
-                <p class="text-sm font-bold text-slate-900 truncate">{{ auth.fullName }}</p>
-                <p class="text-xs text-slate-500 truncate">{{ auth.user?.email }}</p>
-              </div>
-              <div class="py-1">
-                <button @click="auth.logout()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-medium">
-                  <Icon icon="mdi:logout" class="w-4 h-4" />
-                  Cerrar Sesión
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <!-- Page content -->
-      <main class="flex-1 p-8 bg-slate-50/20">
-        <RouterView />
-      </main>
-    </div>
-
-    <!-- Mobile overlay -->
-    <div
-      v-if="sidebarOpen && isMobile"
-      class="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 md:hidden"
-      @click="sidebarOpen = false"
-    />
+    <!-- Overlay for User Menu to close when clicking outside -->
+    <div v-if="userMenuOpen" @click="userMenuOpen = false" class="fixed inset-0 z-40"></div>
   </div>
 </template>
 
@@ -120,55 +137,35 @@ import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const route = useRoute()
-const sidebarOpen = ref(true)
 const userMenuOpen = ref(false)
-const isMobile = ref(false)
+const mobileMenuOpen = ref(false)
 
 const navItems = computed(() => {
   const items = [
     { to: '/portal/dashboard', icon: 'mdi:view-grid-outline',       label: 'Inicio' },
-    { to: '/portal/catalog',   icon: 'mdi:store-search-outline',   label: 'Catálogo de Productos' },
-    { to: '/portal/orders',    icon: 'mdi:cart-check',             label: 'Mis Pedidos' },
-    { to: '/portal/invoices',  icon: 'mdi:file-document-outline',  label: 'Facturación' },
+    { to: '/portal/catalog',   icon: 'mdi:storefront-outline',      label: 'Catálogo B2B' },
+    { to: '/portal/orders',    icon: 'mdi:package-variant',         label: 'Mis Pedidos' },
+    { to: '/portal/invoices',  icon: 'mdi:file-document-outline',   label: 'Facturación' },
   ]
   
   if (auth.user?.role === 'ADMIN') {
-    items.push({ to: '/portal/team', icon: 'mdi:account-group-outline', label: 'Mi Equipo' })
+    items.push({ to: '/portal/team', icon: 'mdi:account-group-outline', label: 'Delegados' })
   }
   
-  items.push({ to: '/portal/profile',   icon: 'mdi:account-circle-outline',   label: 'Configuración' })
+  items.push({ to: '/portal/profile',   icon: 'mdi:account-circle-outline',   label: 'Ajustes' })
   
   return items
 })
 
-const routeTitles: Record<string, string> = {
-  'portal-dashboard': 'Resumen General',
-  'portal-catalog':   'Comprar Productos',
-  'portal-orders':    'Historial de Pedidos',
-  'portal-invoices':  'Estado de Cuenta',
-  'portal-team':      'Gestión de Equipo',
-  'portal-profile':   'Mi Perfil',
-}
-
-const pageTitle = computed(() => routeTitles[route.name as string] ?? 'Bienvenido')
 const initials = computed(() => {
   const u = auth.user
   if (!u) return '?'
   return `${u.firstName[0]}${u.lastName[0]}`.toUpperCase()
 })
 
-const checkMobile = () => {
-  isMobile.value = window.innerWidth < 768
-  if (isMobile.value) sidebarOpen.value = false
-  else sidebarOpen.value = true
-}
-
 let sessionInterval: number
 
 onMounted(() => {
-  checkMobile()
-  window.addEventListener('resize', checkMobile)
-  
   // Background Session Monitor (Kill-Switch Enforcer) runs every 15s
   sessionInterval = window.setInterval(async () => {
     if (auth.isAuthenticated) {
@@ -178,7 +175,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
   clearInterval(sessionInterval)
 })
 </script>
@@ -186,5 +182,12 @@ onUnmounted(() => {
 <style scoped>
 .router-link-active {
   position: relative;
+}
+.hidden-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hidden-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>

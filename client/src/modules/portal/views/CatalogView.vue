@@ -172,8 +172,13 @@
               <span class="text-sm font-bold text-slate-500">Total Estimado</span>
               <span class="text-2xl font-black text-slate-900 tracking-tighter">{{ formatCurrency(cartTotal) }}</span>
            </div>
-           <button class="w-full btn btn-primary py-4 text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-100">
-              Confirmar Pedido B2B
+           <button 
+             @click="submitOrder"
+             :disabled="isSubmitting"
+             class="w-full btn btn-primary py-4 text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
+           >
+              <Icon v-if="isSubmitting" icon="mdi:loading" class="animate-spin w-5 h-5" />
+              {{ isSubmitting ? 'Procesando...' : 'Confirmar Pedido B2B' }}
            </button>
            <p class="text-[10px] text-center text-slate-400 mt-4 leading-relaxed">
              * Sujeto a aprobación según su límite de crédito disponible.
@@ -214,6 +219,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
+import { useUiStore } from '@/stores/ui'
+
+const ui = useUiStore()
 
 const products = ref<any[]>([])
 const loading = ref(true)
@@ -224,6 +232,7 @@ const cartItems = ref<any[]>([])
 const lastAddedItem = ref<string | null>(null)
 const showToast = ref(false)
 const animatingCart = ref(false)
+const isSubmitting = ref(false)
 
 const categories = computed(() => {
   const cats = ['Todos', ...new Set(products.value.map(p => p.category).filter(Boolean))]
@@ -292,6 +301,21 @@ const updateQty = (id: string, delta: number) => {
 
 const removeFromCart = (id: string) => {
   cartItems.value = cartItems.value.filter(i => i.id !== id)
+}
+
+const submitOrder = async () => {
+  if (!cartItems.value.length) return
+  isSubmitting.value = true
+  try {
+    await api.post('/portal/orders', { items: cartItems.value, notes: '' })
+    cartItems.value = []
+    showCart.value = false
+    ui.alert('Pedido Confirmado', 'Su pedido B2B se ha guardado correctamente. Puede ver el detalle en la pestaña de Órdenes.', 'success')
+  } catch (err: any) {
+    ui.alert('Error', err.response?.data?.error || 'No se pudo procesar el pedido.', 'error')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 onMounted(fetchData)

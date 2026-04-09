@@ -171,4 +171,78 @@ export class EmailService {
       </html>
     `;
   }
+
+  /**
+   * Generates a critical alert template for Sync Job Failures.
+   */
+  static getSyncFailureTemplate(data: {
+    integrationName: string;
+    resource: string;
+    errorSummary: string;
+    jobId: string;
+    time: string;
+  }) {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width">
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;700;800&display=swap');
+          body { margin: 0; padding: 0; background-color: #f8fafc; }
+        </style>
+      </head>
+      <body style="background-color: #f8fafc; font-family: 'Segoe UI', Arial, sans-serif;">
+        <table width="100%" border="0" cellpadding="0" cellspacing="0" style="padding: 40px 10px;">
+          <tr>
+            <td align="center">
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border: 1px solid #fee2e2;">
+                <!-- Header -->
+                <tr>
+                  <td align="center" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); padding: 40px 40px;">
+                    <span style="font-size: 48px;">⚠️</span>
+                    <h1 style="color: #ffffff; margin: 16px 0 0 0; font-size: 24px; font-weight: 800;">Alerta de Sincronización</h1>
+                    <p style="color: #fecaca; margin: 8px 0 0 0; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em;">Error Crítico</p>
+                  </td>
+                </tr>
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 40px; line-height: 1.6;">
+                    <p style="font-size: 16px; color: #334155; margin: 0 0 24px 0;">
+                      Se ha detectado un fallo en el motor de sincronización de NexoB2B que requiere atención inmediata.
+                    </p>
+                    
+                    <table width="100%" border="0" cellpadding="12" cellspacing="0" style="background-color: #fef2f2; border-radius: 12px; border: 1px solid #fecaca; margin-bottom: 32px;">
+                      <tr>
+                        <td style="font-size: 14px; color: #7f1d1d;"><strong>Integración:</strong></td>
+                        <td style="font-size: 14px; color: #991b1b;">${data.integrationName}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size: 14px; color: #7f1d1d; border-top: 1px solid #fecaca;"><strong>Recurso:</strong></td>
+                        <td style="font-size: 14px; color: #991b1b; border-top: 1px solid #fecaca;">${data.resource}</td>
+                      </tr>
+                      <tr>
+                        <td style="font-size: 14px; color: #7f1d1d; border-top: 1px solid #fecaca;"><strong>Hora:</strong></td>
+                        <td style="font-size: 14px; color: #991b1b; border-top: 1px solid #fecaca;">${data.time}</td>
+                      </tr>
+                    </table>
+
+                    <div style="background-color: #1e293b; color: #f8fafc; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 13px; margin-bottom: 24px;">
+                      <strong>Error Reportado:</strong><br>
+                      ${data.errorSummary}
+                    </div>
+
+                    <p style="font-size: 14px; color: #64748b; margin: 0;">Job ID: ${data.jobId}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+  }
 }
+
