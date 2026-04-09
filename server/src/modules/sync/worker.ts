@@ -17,9 +17,9 @@ export async function startSyncWorker(): Promise<void> {
     async (jobs) => {
       // In pg-boss v10+, the handler always receives an array of jobs
       await Promise.all(jobs.map(async (job: any) => {
-        const { integrationId, companyId, mappingId, resource, triggeredBy } = job.data as SyncJobPayload;
+        const { integrationId, companyId, mappingId, syncJobId, resource, triggeredBy } = job.data as SyncJobPayload;
 
-        logger.info(`[Worker] Processing sync job ${job.id}`, {
+        logger.info(`[Worker] Processing sync job ${job.id} (Internal ID: ${syncJobId || 'NONE'})`, {
           integrationId,
           mappingId,
           resource,
@@ -50,8 +50,8 @@ export async function startSyncWorker(): Promise<void> {
         }
 
         try {
-          // runSyncJob creates an IntegrationSyncJob record and runs the sync
-          await runSyncJob(integrationId, companyId, mapping as any);
+          // runSyncJob uses the existing IntegrationSyncJob if syncJobId is provided
+          await runSyncJob(integrationId, companyId, mapping as any, syncJobId);
           logger.info(`[Worker] Completed sync job ${job.id} for ${resource}`);
         } catch (err: any) {
           logger.error(`[Worker] Sync job ${job.id} failed: ${err.message}`);

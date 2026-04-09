@@ -14,9 +14,16 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const result = await authService.loginInternal(req.body);
+  const result = await authService.login(req.body);
   return sendSuccess(res, {
-    user: { id: result.user.id, email: result.user.email, role: result.user.role, firstName: result.user.firstName, lastName: result.user.lastName },
+    user: { 
+      id: result.user.id, 
+      email: result.user.email, 
+      role: result.user.role, 
+      firstName: result.user.firstName, 
+      lastName: result.user.lastName,
+      type: result.type 
+    },
     company: result.company,
     accessToken: result.accessToken,
     refreshToken: result.refreshToken,

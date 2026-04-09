@@ -10,7 +10,9 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
+  API_URL: z.string().url().default('http://localhost:3000'),
   BCRYPT_ROUNDS: z.coerce.number().default(12),
+  ENCRYPTION_KEY: z.string().length(32).default('32_characters_secret_key_1234567'), // 32 bytes for AES-256
 });
 
 export const env = envSchema.parse(process.env);

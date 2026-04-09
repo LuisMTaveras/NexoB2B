@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction) {
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return sendUnauthorized(res, 'No token provided');
@@ -31,8 +31,37 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
     const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
     req.user = payload;
     req.companyId = payload.companyId;
+
+    const { prisma } = require('../lib/prisma');
+    
+    // Immediate kill-switch validation (Database Check)
+    if (payload.type === 'internal') {
+      const u = await prisma.internalUser.findUnique({ 
+        where: { id: payload.userId }, 
+        select: { status: true, company: { select: { status: true } } } 
+      });
+      if (!u || u.status !== 'ACTIVE' || u.company.status !== 'ACTIVE') {
+        return sendUnauthorized(res, 'Acceso revocado o cuenta inactiva');
+      }
+      
+      // Update activity tracking asynchronously
+      prisma.internalUser.update({ where: { id: payload.userId }, data: { lastActiveAt: new Date() } }).catch((err: any) => {});
+    } else {
+      const cu = await prisma.customerUser.findUnique({ 
+        where: { id: payload.userId }, 
+        select: { status: true, customer: { select: { status: true, portalEnabled: true, company: { select: { status: true } } } } } 
+      });
+      
+      if (!cu || cu.status !== 'ACTIVE' || cu.customer.status !== 'ACTIVE' || !cu.customer.portalEnabled || cu.customer.company.status !== 'ACTIVE') {
+        return sendUnauthorized(res, 'Acceso B2B suspendido temporalmente');
+      }
+      
+      // Update activity tracking asynchronously
+      prisma.customerUser.update({ where: { id: payload.userId }, data: { lastActiveAt: new Date() } }).catch((err: any) => {});
+    }
+
     next();
-  } catch {
+  } catch (error) {
     return sendUnauthorized(res, 'Invalid or expired token');
   }
 }

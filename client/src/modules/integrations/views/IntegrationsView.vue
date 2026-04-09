@@ -104,7 +104,14 @@
           >
             <Icon :icon="RESOURCE_ICONS[m.resource]" class="w-3.5 h-3.5" />
             {{ RESOURCE_LABELS[m.resource] }}
-            <span class="w-1.5 h-1.5 rounded-full" :class="m.isActive ? 'bg-green-500' : 'bg-gray-300'"></span>
+            <span v-if="getResourceStatus(integration, m.resource)" class="flex items-center ml-1">
+              <Icon 
+                :icon="getStatusConfig(getResourceStatus(integration, m.resource)).icon" 
+                :class="[getStatusConfig(getResourceStatus(integration, m.resource)).color, getStatusConfig(getResourceStatus(integration, m.resource)).animate]"
+                class="w-3 h-3"
+              />
+            </span>
+            <span v-else class="w-1.5 h-1.5 rounded-full" :class="m.isActive ? 'bg-emerald-400' : 'bg-slate-300'"></span>
           </span>
           <span v-if="integration.mappings.length === 0" class="text-xs text-[var(--color-brand-400)] italic">
             Sin recursos configurados — agrega mappings
@@ -114,33 +121,35 @@
         <!-- Last job status -->
         <div v-if="integration.syncJobs?.length" class="border-t border-[var(--color-brand-100)] pt-3">
           <div v-for="lastJob in integration.syncJobs.slice(0, 1)" :key="lastJob.id" class="flex items-center justify-between">
-            <span class="text-xs text-[var(--color-brand-500)]">Último job:</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-[var(--color-brand-500)] uppercase tracking-tight">Actividad Reciente:</span>
+              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-[var(--color-brand-300)] cursor-help" title="Muestra el estado del último proceso de sincronización ejecutado." />
+            </div>
             <div class="flex items-center gap-3 text-xs">
-              <span class="badge" :class="{
-                'badge-neutral': lastJob.status === 'PENDING',
-                'badge-info': lastJob.status === 'RUNNING',
-                'badge-success': lastJob.status === 'SUCCESS',
-                'badge-warning': lastJob.status === 'PARTIAL',
-                'badge-danger': lastJob.status === 'FAILED',
-              }">{{ lastJob.status }}</span>
-              <span class="text-[var(--color-brand-500)]">
-                ✓ {{ lastJob.recordsOk }}
-                <span v-if="lastJob.recordsFailed > 0" class="text-[var(--color-danger-500)] ml-1">
-                  ❌ {{ lastJob.recordsFailed }}
+              <span class="badge" :class="getStatusConfig(lastJob.status).badge">
+                <Icon 
+                  :icon="getStatusConfig(lastJob.status).icon" 
+                  :class="[getStatusConfig(lastJob.status).animate, 'mr-1']" 
+                  class="w-3.5 h-3.5" 
+                />
+                {{ lastJob.status }}
+              </span>
+              <span class="text-[var(--color-brand-500)] font-medium">
+                <span class="text-emerald-600">✓ {{ lastJob.recordsOk }}</span>
+                <span v-if="lastJob.recordsFailed > 0" class="text-rose-500 ml-2">
+                   ❌ {{ lastJob.recordsFailed }}
                 </span>
               </span>
-              <button class="text-[var(--color-accent-500)] hover:underline" @click="openLogsModal(integration, lastJob)">
+              <button class="text-[var(--color-accent-500)] font-bold hover:text-[var(--color-accent-700)] transition-colors" @click="openLogsModal(integration, lastJob)">
                 Ver logs
               </button>
             </div>
           </div>
         </div>
-        <div v-else class="border-t border-[var(--color-brand-100)] pt-3">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-[var(--color-brand-500)]">Último job:</span>
-            <div class="text-xs text-[var(--color-brand-400)] italic">
-              Sin actividad reciente
-            </div>
+        <div v-else class="border-t border-[var(--color-brand-100)] pt-3 text-center">
+          <div class="flex items-center justify-center gap-2">
+            <span class="text-xs text-[var(--color-brand-400)] italic">Sin actividad de sincronización reciente</span>
+            <Icon icon="mdi:history" class="w-3.5 h-3.5 text-[var(--color-brand-300)] opacity-50" />
           </div>
         </div>
       </div>
@@ -150,20 +159,57 @@
     <div v-if="showCreateModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         <div class="flex items-center justify-between px-6 py-4 border-b border-[var(--color-brand-100)]">
-          <h3 class="font-semibold text-[var(--color-brand-900)]">Nueva Integración ERP</h3>
+          <div>
+            <h3 class="font-semibold text-[var(--color-brand-900)]">Nueva Integración ERP</h3>
+            <p class="text-[10px] text-[var(--color-brand-400)] uppercase font-bold tracking-widest mt-0.5">Paso {{ createStep }} de 3</p>
+          </div>
           <button @click="showCreateModal = false" class="text-[var(--color-brand-400)] hover:text-[var(--color-brand-700)] p-1 rounded">✕</button>
         </div>
+
+        <!-- Stepper Indicator -->
+        <div class="px-6 py-4 bg-[var(--color-brand-50)] border-b border-[var(--color-brand-100)] flex items-center justify-between text-[11px] font-bold uppercase tracking-tight text-[var(--color-brand-400)]">
+          <div class="flex items-center gap-2" :class="{ 'text-[var(--color-accent-600)]': createStep >= 1 }">
+            <span class="w-5 h-5 rounded-full border-2 flex items-center justify-center" :class="createStep >= 1 ? 'border-[var(--color-accent-600)] bg-[var(--color-accent-600)] text-white' : 'border-[var(--color-brand-300)]'">1</span>
+            Identidad
+          </div>
+          <div class="h-px bg-[var(--color-brand-200)] flex-1 mx-4"></div>
+          <div class="flex items-center gap-2" :class="{ 'text-[var(--color-accent-600)]': createStep >= 2 }">
+            <span class="w-5 h-5 rounded-full border-2 flex items-center justify-center" :class="createStep >= 2 ? 'border-[var(--color-accent-600)] bg-[var(--color-accent-600)] text-white' : 'border-[var(--color-brand-300)]'">2</span>
+            Seguridad
+          </div>
+          <div class="h-px bg-[var(--color-brand-200)] flex-1 mx-4"></div>
+          <div class="flex items-center gap-2" :class="{ 'text-[var(--color-accent-600)]': createStep >= 3 }">
+            <span class="w-5 h-5 rounded-full border-2 flex items-center justify-center" :class="createStep >= 3 ? 'border-[var(--color-accent-600)] bg-[var(--color-accent-600)] text-white' : 'border-[var(--color-brand-300)]'">3</span>
+            Prueba
+          </div>
+        </div>
+
         <div class="p-6 overflow-y-auto">
-          <form @submit.prevent="createIntegration" class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-              <div class="col-span-2">
+          <form @submit.prevent="createIntegration" class="space-y-6">
+            
+            <!-- STEP 1: IDENTITY -->
+            <div v-if="createStep === 1" class="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div class="p-4 bg-[var(--color-accent-50)] border border-[var(--color-accent-100)] rounded-xl flex gap-3">
+                 <Icon icon="mdi:information-outline" class="w-5 h-5 text-[var(--color-accent-600)] shrink-0" />
+                 <p class="text-xs text-[var(--color-accent-800)] leading-relaxed">
+                   Comienza por nombrar tu conexión y proporcionar la URL base de la API de tu ERP.
+                 </p>
+              </div>
+              <div>
                 <label class="label">Nombre de la integración</label>
-                <input v-model="createForm.name" class="input" placeholder="ERP Contabilidad Pro" required />
+                <input v-model="createForm.name" class="input" placeholder="Ej: SAP Business One / Microsoft Dynamics" required />
               </div>
-              <div class="col-span-2">
+              <div>
                 <label class="label">URL base del ERP</label>
-                <input v-model="createForm.baseUrl" class="input" placeholder="https://erp.miempresa.com/api" required />
+                <div class="relative">
+                  <Icon icon="mdi:web" class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-brand-400)] w-4 h-4" />
+                  <input v-model="createForm.baseUrl" class="input pl-10" placeholder="https://api.empresa.com/v1" required />
+                </div>
               </div>
+            </div>
+
+            <!-- STEP 2: SECURITY -->
+            <div v-if="createStep === 2" class="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
               <div>
                 <label class="label">Método de autenticación</label>
                 <select v-model="createForm.authMethod" class="input">
@@ -173,76 +219,101 @@
                   <option value="OAUTH2">OAuth 2.0</option>
                 </select>
               </div>
-              <div>
-                <label class="label">Endpoint de prueba (opcional)</label>
-                <input v-model="createForm.testEndpoint" class="input" placeholder="/health o /ping" />
+
+              <div class="border border-[var(--color-brand-200)] rounded-xl p-5 space-y-4 bg-[var(--color-brand-50)]/50">
+                <template v-if="createForm.authMethod === 'API_KEY'">
+                  <div>
+                    <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">API Key</label>
+                    <input v-model="createForm.credentials.apiKey" class="input" placeholder="sk_live_..." required />
+                  </div>
+                  <div>
+                    <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">Nombre del Header (Opcional)</label>
+                    <input v-model="createForm.credentials.headerName" class="input" placeholder="X-API-Key" />
+                  </div>
+                </template>
+                <template v-else-if="createForm.authMethod === 'BEARER_TOKEN'">
+                  <div>
+                    <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">Bearer Token</label>
+                    <textarea v-model="createForm.credentials.token" class="input text-xs font-mono" rows="3" placeholder="eyJ..." required></textarea>
+                  </div>
+                </template>
+                <template v-else-if="createForm.authMethod === 'BASIC_AUTH'">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">Usuario</label>
+                      <input v-model="createForm.credentials.username" class="input" required />
+                    </div>
+                    <div>
+                      <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">Contraseña</label>
+                      <input v-model="createForm.credentials.password" class="input" type="password" required />
+                    </div>
+                  </div>
+                </template>
+                <template v-else-if="createForm.authMethod === 'OAUTH2'">
+                  <div class="space-y-3">
+                    <div>
+                      <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">Token URL</label>
+                      <input v-model="createForm.credentials.tokenUrl" class="input" placeholder="https://..." required />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">Client ID</label>
+                        <input v-model="createForm.credentials.clientId" class="input" required />
+                      </div>
+                      <div>
+                        <label class="label text-xs uppercase font-bold text-[var(--color-brand-500)]">Client Secret</label>
+                        <input v-model="createForm.credentials.clientSecret" class="input" type="password" required />
+                      </div>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
 
-            <!-- Dynamic credentials fields -->
-            <div class="border border-[var(--color-brand-200)] rounded-lg p-4 space-y-3 bg-[var(--color-brand-50)]">
-              <p class="text-xs font-medium text-[var(--color-brand-600)] uppercase tracking-wide">Credenciales</p>
-              <template v-if="createForm.authMethod === 'API_KEY'">
-                <div>
-                  <label class="label">API Key</label>
-                  <input v-model="createForm.credentials.apiKey" class="input" placeholder="sk_live_..." required />
+            <!-- STEP 3: ADVANCED & TEST -->
+            <div v-if="createStep === 3" class="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div>
+                <label class="label">Endpoint de prueba (opcional)</label>
+                <input v-model="createForm.testEndpoint" class="input" placeholder="Ej: /health, /status o /ping" />
+              </div>
+              <div>
+                <label class="label">Headers adicionales (JSON)</label>
+                <textarea v-model="createForm.headersRaw" class="input font-mono text-xs" rows="3" placeholder='{"X-Tenant-ID": "123"}'></textarea>
+              </div>
+              
+              <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <h4 class="text-xs font-bold text-indigo-900 uppercase mb-2">Resumen de Conexión</h4>
+                <div class="grid grid-cols-2 gap-y-2 text-[11px]">
+                  <span class="text-indigo-600 font-medium">Proveedor:</span>
+                  <span class="text-indigo-900 font-bold truncate">{{ createForm.name || 'Sin nombre' }}</span>
+                  <span class="text-indigo-600 font-medium">Método:</span>
+                  <span class="text-indigo-900 font-bold">{{ authLabels[createForm.authMethod] }}</span>
                 </div>
-                <div>
-                  <label class="label">Nombre del header (default: X-API-Key)</label>
-                  <input v-model="createForm.credentials.headerName" class="input" placeholder="X-API-Key" />
-                </div>
-              </template>
-              <template v-else-if="createForm.authMethod === 'BEARER_TOKEN'">
-                <div>
-                  <label class="label">Token</label>
-                  <input v-model="createForm.credentials.token" class="input" placeholder="eyJ..." required />
-                </div>
-              </template>
-              <template v-else-if="createForm.authMethod === 'BASIC_AUTH'">
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="label">Usuario</label>
-                    <input v-model="createForm.credentials.username" class="input" required />
-                  </div>
-                  <div>
-                    <label class="label">Contraseña</label>
-                    <input v-model="createForm.credentials.password" class="input" type="password" required />
-                  </div>
-                </div>
-              </template>
-              <template v-else-if="createForm.authMethod === 'OAUTH2'">
-                <div>
-                  <label class="label">Token URL</label>
-                  <input v-model="createForm.credentials.tokenUrl" class="input" placeholder="https://erp.com/oauth/token" required />
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="label">Client ID</label>
-                    <input v-model="createForm.credentials.clientId" class="input" required />
-                  </div>
-                  <div>
-                    <label class="label">Client Secret</label>
-                    <input v-model="createForm.credentials.clientSecret" class="input" type="password" required />
-                  </div>
-                </div>
-              </template>
+              </div>
             </div>
 
-            <!-- Extra headers -->
-            <div>
-              <label class="label">Headers adicionales (JSON, opcional)</label>
-              <textarea v-model="createForm.headersRaw" class="input font-mono text-xs" rows="2" placeholder='{"X-Company-ID": "123"}'></textarea>
-            </div>
-
-            <div v-if="createError" class="text-sm text-[var(--color-danger-500)] bg-[var(--color-danger-100)] rounded-lg px-3 py-2">
+            <div v-if="createError" class="text-sm text-[var(--color-danger-500)] bg-[var(--color-danger-100)] rounded-lg px-3 py-2 border border-[var(--color-danger-200)]">
               {{ createError }}
             </div>
 
-            <div class="flex justify-end gap-3 pt-2">
-              <button type="button" class="btn btn-secondary" @click="showCreateModal = false">Cancelar</button>
-              <button type="submit" class="btn btn-primary" :disabled="creating">
+            <div class="flex justify-between items-center pt-2">
+              <button type="button" class="btn btn-secondary" v-if="createStep === 1" @click="showCreateModal = false">Cancelar</button>
+              <button type="button" class="btn btn-secondary" v-else @click="createStep--">
+                <Icon icon="mdi:arrow-left" class="w-4 h-4" /> Anterior
+              </button>
+              
+              <button 
+                type="button" 
+                class="btn btn-primary min-w-[120px]" 
+                v-if="createStep < 3" 
+                @click="createStep++"
+                :disabled="!createForm.name || !createForm.baseUrl"
+              >
+                Siguiente <Icon icon="mdi:arrow-right" class="w-4 h-4" />
+              </button>
+              <button type="submit" class="btn btn-primary min-w-[120px]" v-else :disabled="creating">
                 <Icon v-if="creating" icon="mdi:loading" class="w-4 h-4 animate-spin" />
-                {{ creating ? 'Creando...' : 'Crear integración' }}
+                {{ creating ? 'Configurando...' : 'Finalizar Alta' }}
               </button>
             </div>
           </form>
@@ -356,60 +427,85 @@
                   </button>
                 </div>
 
-                <!-- ─── Scheduling Section ─────────────────────────── -->
-                <div class="border border-[var(--color-brand-200)] rounded-xl p-4 space-y-3 bg-gradient-to-br from-[var(--color-brand-50)] to-[var(--color-accent-50)]">
+                <!-- ─── Scheduling Section (Premium Corporate) ─────────────────────────── -->
+                <div class="border border-[var(--color-brand-100)] rounded-2xl p-5 space-y-4 bg-[#F8FAFC] shadow-inner">
                   <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <Icon icon="mdi:clock-outline" class="w-4 h-4 text-[var(--color-accent-600)]" />
-                      <p class="text-xs font-semibold text-[var(--color-brand-700)] uppercase tracking-wide">Automatización (Scheduler)</p>
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-xl bg-white border border-[var(--color-brand-100)] shadow-sm flex items-center justify-center">
+                         <Icon icon="mdi:clock-check-outline" class="w-5 h-5 text-[var(--color-accent-600)]" />
+                      </div>
+                      <div>
+                        <p class="text-xs font-bold text-[var(--color-brand-800)] uppercase tracking-widest">Sincronización Automática</p>
+                        <p class="text-[10px] text-[var(--color-brand-500)]">Define cuándo se ejecutará este mapping solo</p>
+                      </div>
                     </div>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                      <span class="text-xs text-[var(--color-brand-500)]">Activar</span>
+                    
+                    <label class="inline-flex items-center cursor-pointer group">
+                      <span class="text-xs font-bold text-[var(--color-brand-400)] group-hover:text-[var(--color-accent-600)] transition-colors mr-3 uppercase">
+                        {{ mappingForm[resource].isScheduled ? 'Activo' : 'Inactivo' }}
+                      </span>
                       <div class="relative">
                         <input type="checkbox" v-model="mappingForm[resource].isScheduled" class="sr-only" />
-                        <div class="w-9 h-5 rounded-full transition-colors" :class="mappingForm[resource].isScheduled ? 'bg-[var(--color-accent-500)]' : 'bg-[var(--color-brand-300)]'"></div>
-                        <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" :class="mappingForm[resource].isScheduled ? 'translate-x-4' : 'translate-x-0'"></div>
+                        <div class="w-11 h-6 bg-slate-200 rounded-full transition-all duration-300" :class="mappingForm[resource].isScheduled ? 'bg-indigo-600' : ''"></div>
+                        <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-lg transition-transform duration-300 transform" :class="mappingForm[resource].isScheduled ? 'translate-x-5' : 'translate-x-0'"></div>
                       </div>
                     </label>
                   </div>
 
-                  <div v-if="mappingForm[resource].isScheduled" class="space-y-3 pt-1">
-                    <div>
-                      <label class="label">Frecuencia</label>
-                      <select
-                        v-model="mappingForm[resource].syncCronPreset"
-                        class="input text-sm"
-                        @change="applyPreset(resource)"
-                      >
-                        <option value="custom">Personalizada (Cron)</option>
-                        <option value="*/15 * * * *">Cada 15 minutos</option>
-                        <option value="0 * * * *">Cada hora</option>
-                        <option value="0 */6 * * *">Cada 6 horas</option>
-                        <option value="0 */12 * * *">Cada 12 horas</option>
-                        <option value="0 2 * * *">Diario a las 2 AM</option>
-                        <option value="0 3 * * 1">Semanal (Lunes 3 AM)</option>
-                        <option value="0 4 1 * *">Mensual (Día 1, 4 AM)</option>
-                      </select>
+                  <Transition
+                    enter-active-class="transition duration-300 ease-out"
+                    enter-from-class="opacity-0 -translate-y-2 scale-95"
+                    enter-to-class="opacity-100 translate-y-0 scale-100"
+                    leave-active-class="transition duration-200 ease-in"
+                    leave-from-class="opacity-100 translate-y-0 scale-100"
+                    leave-to-class="opacity-0 -translate-y-2 scale-95"
+                  >
+                    <div v-if="mappingForm[resource].isScheduled" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div class="space-y-1.5">
+                          <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Frecuencia sugerida</label>
+                          <div class="relative">
+                            <select
+                              v-model="mappingForm[resource].syncCronPreset"
+                              class="input text-sm appearance-none pr-10"
+                              @change="applyPreset(resource)"
+                            >
+                              <option value="custom">⚙️ Configuración Manual (Cron)</option>
+                              <option value="*/15 * * * *">🕐 Cada 15 minutos</option>
+                              <option value="0 * * * *">🕒 Cada hora</option>
+                              <option value="0 */6 * * *">🕕 Cada 6 horas</option>
+                              <option value="0 */12 * * *">🕛 Cada 12 horas</option>
+                              <option value="0 2 * * *">📅 Diario a las 2 AM</option>
+                            </select>
+                            <Icon icon="mdi:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                          <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Expresión Cron experta</label>
+                          <input
+                            v-model="mappingForm[resource].syncCron"
+                            class="input text-sm font-mono placeholder:text-slate-300"
+                            placeholder="* * * * *"
+                          />
+                        </div>
+
+                        <div class="col-span-1 sm:col-span-2 mt-1">
+                          <div class="flex items-center gap-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                               <Icon icon="mdi:calendar-sync" class="w-4 h-4 text-indigo-600" />
+                            </div>
+                            <div>
+                               <p class="text-[10px] font-bold text-indigo-400 uppercase leading-none mb-1">Próximo evento sincronizado</p>
+                               <p class="text-xs font-bold text-indigo-900 leading-none">
+                                 {{ describeCron(mappingForm[resource].syncCron) }}
+                               </p>
+                            </div>
+                          </div>
+                        </div>
                     </div>
-                    <div>
-                      <label class="label">Expresión Cron</label>
-                      <input
-                        v-model="mappingForm[resource].syncCron"
-                        class="input text-sm font-mono"
-                        placeholder="0 2 * * * (diario a las 2 AM)"
-                      />
-                      <p class="text-xs text-[var(--color-brand-400)] mt-1">
-                        Formato: minuto hora día-mes mes día-semana · Zona horaria: America/Santo_Domingo
-                      </p>
-                    </div>
-                    <div v-if="mappingForm[resource].syncCron" class="flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-100)] rounded-lg">
-                      <Icon icon="mdi:information-outline" class="w-4 h-4 text-[var(--color-accent-600)]" />
-                      <span class="text-xs text-[var(--color-accent-700)]">
-                        Próxima ejecución: {{ describeCron(mappingForm[resource].syncCron) }}
-                      </span>
-                    </div>
-                  </div>
+                  </Transition>
                 </div>
+
 
                 <div class="flex justify-end gap-2">
                   <button
@@ -508,7 +604,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useUiStore } from '@/stores/ui'
 import { Icon } from '@iconify/vue'
 import {
   integrationsApi, RESOURCE_LABELS, RESOURCE_ICONS, DEFAULT_FIELD_MAPPINGS,
@@ -519,13 +617,16 @@ import {
 const ALL_RESOURCES: SyncResource[] = ['PRODUCTS', 'CUSTOMERS', 'PRICE_LISTS', 'PRICE_ASSIGNMENTS', 'INVOICES', 'RECEIVABLES', 'ORDERS']
 const authLabels: Record<string, string> = { API_KEY: 'API Key', BEARER_TOKEN: 'Bearer Token', BASIC_AUTH: 'Basic Auth', OAUTH2: 'OAuth 2.0' }
 
+const auth = useAuthStore()
+const ui = useUiStore()
 const integrations = ref<Integration[]>([])
 const loading = ref(false)
 const syncing = reactive<Record<string, boolean>>({})
 const toast = ref<{ type: 'success' | 'error'; message: string } | null>(null)
 
-// Create modal
+// Create Wizard
 const showCreateModal = ref(false)
+const createStep = ref(1)
 const creating = ref(false)
 const createError = ref('')
 const createForm = reactive({
@@ -540,23 +641,6 @@ const selectedIntegration = ref<Integration | null>(null)
 const expandedResource = ref<SyncResource | null>(null)
 const savingMapping = reactive<Record<string, boolean>>({})
 
-function initMappingForm() {
-  const form: Record<string, any> = {}
-  ALL_RESOURCES.forEach((r) => {
-    const existing = getMappingForResource(r)
-    form[r] = {
-      externalEndpoint: existing?.externalEndpoint ?? '',
-      paginationType: (existing?.paginationConfig?.type) ?? 'none',
-      pageParam: existing?.paginationConfig?.pageParam ?? 'page',
-      pageSizeParam: existing?.paginationConfig?.pageSizeParam ?? 'limit',
-      pageSize: existing?.paginationConfig?.pageSize ?? 100,
-      dataPath: existing?.paginationConfig?.dataPath ?? '',
-      fields: { ...DEFAULT_FIELD_MAPPINGS[r], ...(existing?.fieldMappings ?? {}) },
-    }
-  })
-  return form
-}
-
 const mappingForm = reactive<Record<string, any>>({})
 
 // Logs modal
@@ -569,13 +653,59 @@ const logFilter = ref('')
 const logsLoading = ref(false)
 
 // ─── Methods ─────────────────────────────────────────────────────
-async function load() {
-  loading.value = true
+// ─── Polling Logic ──────────────────────────────────────────────
+let pollInterval: any = null
+
+function startPolling() {
+  if (pollInterval) return
+  pollInterval = setInterval(() => {
+    const hasActiveJobs = integrations.value.some(i => 
+      i.syncJobs?.some(j => j.status === 'RUNNING' || j.status === 'PENDING')
+    )
+    if (hasActiveJobs) {
+      loadQuiet() // Refresh without full loading spinner
+    } else {
+      stopPolling()
+    }
+  }, 5000)
+}
+
+function stopPolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval)
+    pollInterval = null
+  }
+}
+
+async function load(showSpinner = true) {
+  if (showSpinner) loading.value = true
   try {
     const res = await integrationsApi.list()
     integrations.value = res.data.data
+    
+    // Check if we need to continue/start polling
+    const hasActiveJobs = integrations.value.some(i => 
+      i.syncJobs?.some(j => j.status === 'RUNNING' || j.status === 'PENDING')
+    )
+    if (hasActiveJobs) startPolling()
+    else stopPolling()
+
   } finally {
-    loading.value = false
+    if (showSpinner) loading.value = false
+  }
+}
+
+async function loadQuiet() {
+  try {
+    const res = await integrationsApi.list()
+    integrations.value = res.data.data
+    // Stop polling if all jobs finished
+    const hasActiveJobs = integrations.value.some(i => 
+      i.syncJobs?.some(j => j.status === 'RUNNING' || j.status === 'PENDING')
+    )
+    if (!hasActiveJobs) stopPolling()
+  } catch (err) {
+    stopPolling() // Stop on error to prevent infinite retries if server down
   }
 }
 
@@ -586,6 +716,7 @@ function showToast(type: 'success' | 'error', message: string) {
 
 function openCreateModal() {
   Object.assign(createForm, { name: '', baseUrl: '', authMethod: 'API_KEY', testEndpoint: '', credentials: {}, headersRaw: '' })
+  createStep.value = 1
   createError.value = ''
   showCreateModal.value = true
 }
@@ -607,10 +738,10 @@ async function createIntegration() {
       testEndpoint: createForm.testEndpoint || undefined,
     })
     showCreateModal.value = false
-    showToast('success', 'La integración se creó correctamente')
+    ui.alert('Integración creada', 'La integración se creó correctamente', 'success')
     await load()
   } catch (err: any) {
-    createError.value = err?.response?.data?.error ?? 'Error al crear integración'
+    ui.alert('Error', err?.response?.data?.error ?? 'Error al crear integración', 'error')
   } finally {
     creating.value = false
   }
@@ -635,16 +766,23 @@ async function triggerSync(integration: Integration) {
   try {
     await integrationsApi.sync(integration.id)
     showToast('success', 'Sincronización iniciada')
-    setTimeout(() => load(), 2000)
+    // Start polling immediately to catch the 'PENDING/RUNNING' state
+    await load(false) 
+    startPolling()
   } catch (err: any) {
     showToast('error', err?.response?.data?.error ?? 'Error al sincronizar')
   } finally {
-    setTimeout(() => { syncing[integration.id] = false }, 3000)
+    setTimeout(() => { syncing[integration.id] = false }, 1000)
   }
 }
 
 async function deleteIntegration(integration: Integration) {
-  if (!confirm(`¿Eliminar la integración "${integration.name}"? Esta acción no se puede deshacer.`)) return
+  const confirmed = await ui.confirm(
+    'Eliminar Integración',
+    `¿Estás seguro que deseas eliminar "${integration.name}"? Esta acción no se puede deshacer.`
+  )
+  if (!confirmed) return
+  
   await integrationsApi.delete(integration.id)
   showToast('success', 'Integración eliminada')
   await load()
@@ -665,7 +803,7 @@ function openMappingModal(integration: Integration) {
       pageSize: (existing?.paginationConfig as any)?.pageSize ?? 100,
       dataPath: (existing?.paginationConfig as any)?.dataPath ?? '',
       totalPath: (existing?.paginationConfig as any)?.totalPath ?? '',
-      fields: { ...DEFAULT_FIELD_MAPPINGS[r], ...(existing?.fieldMappings ?? {}) },
+      fields: { ...DEFAULT_FIELD_MAPPINGS[r], ...existing?.fieldMappings },
       // Scheduling
       isScheduled: (existing as any)?.isScheduled ?? false,
       syncCron: (existing as any)?.syncCron ?? '',
@@ -795,5 +933,68 @@ function formatTime(d: string) {
   return new Date(d).toLocaleTimeString('es-DO')
 }
 
+const getStatusConfig = (status: string | null | undefined) => {
+  switch (status) {
+    case 'PENDING':
+      return {
+        icon: 'mdi:clock-outline',
+        color: 'text-slate-500',
+        bg: 'bg-slate-100/80',
+        badge: 'badge-neutral',
+        animate: 'animate-pulse'
+      }
+    case 'RUNNING':
+      return {
+        icon: 'mdi:loading',
+        color: 'text-blue-500',
+        bg: 'bg-blue-100/80',
+        badge: 'badge-info',
+        animate: 'animate-spin'
+      }
+    case 'SUCCESS':
+      return {
+        icon: 'mdi:check-circle',
+        color: 'text-emerald-500',
+        bg: 'bg-emerald-100/80',
+        badge: 'badge-success',
+        animate: 'animate-success-pop'
+      }
+    case 'PARTIAL':
+      return {
+        icon: 'mdi:alert-circle-outline',
+        color: 'text-amber-500',
+        bg: 'bg-amber-100/80',
+        badge: 'badge-warning',
+        animate: ''
+      }
+    case 'FAILED':
+      return {
+        icon: 'mdi:alert-circle',
+        color: 'text-rose-500',
+        bg: 'bg-rose-100/80',
+        badge: 'badge-danger',
+        animate: 'animate-shake'
+      }
+    default:
+      return {
+        icon: 'mdi:help-circle-outline',
+        color: 'text-slate-400',
+        bg: 'bg-slate-50',
+        badge: 'badge-neutral',
+        animate: ''
+      }
+  }
+}
+
+const getResourceStatus = (integration: Integration, resource: SyncResource) => {
+  if (!integration.syncJobs) return null
+  const jobs = integration.syncJobs
+    .filter(j => j.resource === resource)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  
+  return jobs[0]?.status ?? null
+}
+
 onMounted(load)
+onUnmounted(stopPolling)
 </script>

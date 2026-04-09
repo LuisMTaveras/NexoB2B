@@ -1,4 +1,5 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import axiosRetry from 'axios-retry';
 import { logger } from './logger';
 
 export type AuthMethod = 'API_KEY' | 'BEARER_TOKEN' | 'BASIC_AUTH' | 'OAUTH2';
@@ -74,14 +75,33 @@ export class ErpClient {
       },
     });
 
-    this.http.interceptors.request.use(async (config) => {
+    // Configure automatic retries with exponential backoff
+    axiosRetry(this.http as any, {
+      retries: 3,
+      retryDelay: axiosRetry.exponentialDelay,
+      onRetry: (retryCount, error, requestConfig) => {
+        logger.warn(`ERP Request Failed. Retrying... (${retryCount}/3)`, {
+          url: requestConfig.url,
+          error: error.message,
+        });
+      },
+      retryCondition: (error: any) => {
+        // Retry on network errors or 5xx server errors
+        return Boolean(
+          axiosRetry.isNetworkOrIdempotentRequestError(error) || 
+          (error.response?.status && error.response.status >= 500)
+        );
+      },
+    });
+
+    this.http.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
       await this.injectAuth(config);
       return config;
     });
 
     this.http.interceptors.response.use(
-      (res) => res,
-      (err) => {
+      (res: AxiosResponse) => res,
+      (err: any) => {
         logger.warn('ERP request failed', {
           url: err.config?.url,
           status: err.response?.status,
@@ -92,7 +112,7 @@ export class ErpClient {
     );
   }
 
-  private async injectAuth(config: AxiosRequestConfig): Promise<void> {
+  private async injectAuth(config: AxiosRequestConfig | InternalAxiosRequestConfig): Promise<void> {
     const creds = this.credentials;
     switch (this.authMethod) {
       case 'API_KEY':
@@ -122,7 +142,7 @@ export class ErpClient {
       client_id: creds.clientId,
       client_secret: creds.clientSecret,
     });
-    return res.data.access_token;
+    return (res.data as any).access_token;
   }
 
   /**
@@ -173,8 +193,8 @@ export class ErpClient {
 
       let responseData: any;
       try {
-        const res = await this.http.get(endpoint, { params, headers });
-        responseData = res.data;
+        const res: AxiosResponse = await this.http.get(endpoint, { params, headers });
+        responseData = res.data as any;
       } catch (err: any) {
         throw new Error(`Failed to fetch page ${page} from ${endpoint}: ${err.message}`);
       }

@@ -9,6 +9,7 @@ export interface AuthUser {
   lastName: string
   email: string
   role: string
+  type: 'internal' | 'customer'
 }
 
 export interface AuthCompany {
@@ -42,9 +43,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await api.post('/auth/login', { email, password })
       setTokens(data.data.accessToken)
-      user.value = data.data.user
       company.value = data.data.company
-      router.push('/admin/dashboard')
+      const target = data.data.user.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
+      router.push(target)
     } finally {
       loading.value = false
     }
@@ -62,9 +63,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await api.post('/auth/register', payload)
       setTokens(data.data.accessToken)
-      user.value = data.data.user
       company.value = data.data.company
-      router.push('/admin/dashboard')
+      const target = data.data.user.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
+      router.push(target)
     } finally {
       loading.value = false
     }

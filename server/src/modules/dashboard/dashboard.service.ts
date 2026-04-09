@@ -75,6 +75,49 @@ export async function getDashboardData(companyId: string) {
     data: sortedMonths.map(m => monthlyRevenue[m]),
   };
 
+  // 4. Sync Health (Last 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  const syncJobs = await prisma.integrationSyncJob.findMany({
+    where: {
+      integration: { companyId },
+      createdAt: { gte: sevenDaysAgo },
+    },
+    select: { recordsOk: true, recordsFailed: true, status: true, createdAt: true },
+  });
+
+  const syncStats = {
+    totalRecords: syncJobs.reduce((acc, job) => acc + job.recordsOk + job.recordsFailed, 0),
+    successRate: 0,
+    dailyVolumes: [] as { date: string, count: number }[],
+    statusCounts: { SUCCESS: 0, FAILED: 0, RUNNING: 0, PARTIAL: 0 }
+  };
+
+  if (syncStats.totalRecords > 0) {
+    const totalOk = syncJobs.reduce((acc, job) => acc + job.recordsOk, 0);
+    syncStats.successRate = Math.round((totalOk / syncStats.totalRecords) * 100);
+  }
+
+  // Calculate daily volumes for the last 7 days
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const dayJobs = syncJobs.filter(j => j.createdAt.toISOString().split('T')[0] === dateStr);
+    syncStats.dailyVolumes.push({
+      date: dateStr,
+      count: dayJobs.reduce((acc, job) => acc + job.recordsOk + job.recordsFailed, 0)
+    });
+  }
+
+  syncJobs.forEach(j => {
+    if (j.status in syncStats.statusCounts) {
+      syncStats.statusCounts[j.status as keyof typeof syncStats.statusCounts]++;
+    }
+  });
+
   return {
     overview: {
       activeCustomers,
@@ -86,6 +129,43 @@ export async function getDashboardData(companyId: string) {
     charts: {
       orderDistribution: orderStatsDistribution,
       revenue: revenueChart,
+      syncHealth: syncStats,
     }
   };
+}
+
+export async function getOnlineUsers(companyId: string) {
+  const twoMinutesAgo = new Date();
+  twoMinutesAgo.setMinutes(twoMinutesAgo.getMinutes() - 2);
+
+  const [internalOnline, customerOnline] = await Promise.all([
+    // VSCODE HINT: Si marca error aquí, reiniciar el TS Server (Ctrl+Shift+P -> TypeScript: Restart TS Server)
+    prisma.internalUser.findMany({
+      where: {
+        companyId,
+        lastActiveAt: { gte: twoMinutesAgo }
+      },
+      select: { id: true, firstName: true, lastName: true, email: true, role: true, lastActiveAt: true }
+    }),
+    prisma.customerUser.findMany({
+      where: {
+        customer: { companyId },
+        lastActiveAt: { gte: twoMinutesAgo }
+      },
+      select: { 
+        id: true, 
+        firstName: true, 
+        lastName: true, 
+        email: true, 
+        role: true, 
+        lastActiveAt: true,
+        customer: { select: { name: true } }
+      }
+    })
+  ]);
+
+  return [
+    ...internalOnline.map(u => ({ ...u, type: 'internal', clientName: 'NexoB2B (Corp)' })),
+    ...customerOnline.map(u => ({ ...u, type: 'customer', clientName: u.customer.name }))
+  ].sort((a, b) => (b.lastActiveAt?.getTime() || 0) - (a.lastActiveAt?.getTime() || 0));
 }

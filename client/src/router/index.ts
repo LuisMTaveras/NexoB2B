@@ -17,12 +17,18 @@ const router = createRouter({
       component: () => import('@/modules/auth/views/RegisterView.vue'),
       meta: { public: true },
     },
+    {
+      path: '/setup-password',
+      name: 'setup-password',
+      component: () => import('@/modules/auth/views/SetupPasswordView.vue'),
+      meta: { public: true },
+    },
 
     // ─── Admin (internal users) ───────────────────────────────────
     {
       path: '/admin',
       component: () => import('@/components/layout/AdminLayout.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, type: 'internal' },
       children: [
         { path: '', redirect: '/admin/dashboard' },
         {
@@ -60,12 +66,66 @@ const router = createRouter({
           name: 'profile',
           component: () => import('@/modules/profile/views/ProfileView.vue'),
         },
+        {
+          path: 'settings/email',
+          name: 'email-settings',
+          component: () => import('@/modules/settings/views/EmailSettingsView.vue'),
+        },
+      ],
+    },
+
+    // ─── Portal (customer users) ──────────────────────────────────
+    {
+      path: '/portal',
+      component: () => import('@/components/layout/PortalLayout.vue'),
+      meta: { requiresAuth: true, type: 'customer' },
+      children: [
+        { path: '', redirect: '/portal/dashboard' },
+        {
+          path: 'dashboard',
+          name: 'portal-dashboard',
+          component: () => import('@/modules/portal/views/PortalDashboard.vue'),
+        },
+        {
+          path: 'catalog',
+          name: 'portal-catalog',
+          component: () => import('@/modules/portal/views/CatalogView.vue'),
+        },
+        {
+          path: 'orders',
+          name: 'portal-orders',
+          component: () => import('@/modules/portal/views/OrdersView.vue'),
+        },
+        {
+          path: 'invoices',
+          name: 'portal-invoices',
+          component: () => import('@/modules/portal/views/InvoicesView.vue'),
+        },
+        {
+          path: 'team',
+          name: 'portal-team',
+          component: () => import('@/modules/portal/views/PortalUsersView.vue'),
+        },
+        {
+          path: 'profile',
+          name: 'portal-profile',
+          component: () => import('@/modules/portal/views/ProfileView.vue'),
+        },
       ],
     },
 
     // ─── Root redirect ────────────────────────────────────────────
-    { path: '/', redirect: '/admin/dashboard' },
-    { path: '/:pathMatch(.*)*', redirect: '/admin/dashboard' },
+    { 
+      path: '/', 
+      redirect: _ => {
+        const auth = useAuthStore()
+        if (auth.isAuthenticated) {
+          return auth.user?.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
+        }
+        return '/login'
+      }
+    },
+    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 
@@ -78,12 +138,29 @@ router.beforeEach(async (to) => {
     await auth.fetchMe()
   }
 
+  // Auth protection
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login' }
   }
 
-  if (to.meta.public && auth.isAuthenticated) {
-    return { name: 'dashboard' }
+  // Cross-access protection
+  if (auth.isAuthenticated) {
+    const userType = auth.user?.type
+    
+    // Redirect internal users away from /portal
+    if (to.path.startsWith('/portal') && userType === 'internal') {
+      return { name: 'dashboard' }
+    }
+    
+    // Redirect customer users away from /admin
+    if (to.path.startsWith('/admin') && userType === 'customer') {
+      return { name: 'portal-dashboard' }
+    }
+
+    // Redirect logged in users away from public routes
+    if (to.meta.public) {
+      return userType === 'internal' ? { name: 'dashboard' } : { name: 'portal-dashboard' }
+    }
   }
 })
 

@@ -18,5 +18,8 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
+  },
+  "prisma": {
+    "seed": "npx ts-node prisma/seed.ts"
   }
 }

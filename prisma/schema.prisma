@@ -91,6 +91,8 @@ model Company {
   website   String?
   address   String?
   logo      String?
+  corporateEmail String?
+  socialLinks    Json?         // { linkedin, instagram, facebook, twitter/x }
   status    CompanyStatus @default(CONFIGURING)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -131,14 +133,35 @@ model InternalUser {
   role         InternalRole @default(OPERATOR)
   status       UserStatus   @default(ACTIVE)
   lastLoginAt  DateTime?
+  lastActiveAt DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   auditLogs AuditLog[]
+  emailConfig EmailConfig?
 
   @@index([companyId])
   @@index([email])
+}
+
+model EmailConfig {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  provider     String   @default("CUSTOM") // GMAIL, OUTLOOK, CUSTOM
+  host         String?
+  port         Int?
+  smtpUser     String
+  password     String   // encrypted
+  imapHost     String?
+  imapPort     Int?
+  fromAddress  String
+  fromName     String?
+  useTLS       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user InternalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ─── Integrations ────────────────────────────────────────────────
@@ -237,6 +260,7 @@ model Customer {
   address       String?
   status        CustomerStatus @default(ACTIVE)
   portalEnabled Boolean        @default(false)
+  maxUsers      Int            @default(5)
   syncedAt      DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -263,12 +287,27 @@ model CustomerUser {
   role         CustomerRole @default(BUYER)
   status       UserStatus   @default(INVITED)
   lastLoginAt  DateTime?
+  lastActiveAt DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokens   VerificationToken[]
 
   @@index([customerId])
+}
+
+model VerificationToken {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  type       String   // INVITATION, PASSWORD_RESET
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user CustomerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ─── Products & Pricing ──────────────────────────────────────────
@@ -285,6 +324,7 @@ model Product {
   brand        String?
   unit         String?
   imageUrl     String?
+  stock        Decimal  @default(0) @db.Decimal(18, 4)
   isVisible    Boolean  @default(true)
   isActive     Boolean  @default(true)
   syncedAt     DateTime?

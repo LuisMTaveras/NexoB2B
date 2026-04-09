@@ -84,7 +84,22 @@ export const RESOURCE_ICONS: Record<SyncResource, string> = {
 }
 
 export const DEFAULT_FIELD_MAPPINGS: Record<SyncResource, Record<string, string>> = {
-  PRODUCTS: { sku: 'codigo', name: 'descripcion', description: 'detalle', category: 'familia', brand: 'marca', unit: 'unidad', imageUrl: 'imagen', externalId: 'codigo', priceListId: '=LISTA_1', price: 'precio1' },
+  PRODUCTS: { 
+    sku: 'codigo', 
+    name: 'descripcion', 
+    description: 'detalle', 
+    category: 'familia', 
+    brand: 'marca', 
+    unit: 'unidad', 
+    imageUrl: 'imagen', 
+    externalId: 'codigo', 
+    stock: 'existencia',
+    price1: 'precio1',
+    price2: 'precio2',
+    price3: 'precio3',
+    price4: 'precio4',
+    price5: 'precio5'
+  },
   CUSTOMERS: { externalId: 'codigo', name: 'nombre', taxId: 'rnc', email: 'correo', phone: 'telefono', address: 'direccion', priceListId: 'lista_precio' },
   PRICE_LISTS: { sku: 'codigo', priceListId: '=LISTA_1', price: 'precio', currency: '=DOP' },
   PRICE_ASSIGNMENTS: { externalId: 'codigoCliente', priceListId: 'lista' },

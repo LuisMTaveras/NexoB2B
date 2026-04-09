@@ -8,3 +8,9 @@ export const getDashboardStats = asyncHandler(async (req: Request, res: Response
   const data = await dashboardService.getDashboardData(companyId);
   return sendSuccess(res, data);
 });
+
+export const getOnlineUsers = asyncHandler(async (req: Request, res: Response) => {
+  const companyId = req.user!.companyId;
+  const data = await dashboardService.getOnlineUsers(companyId);
+  return sendSuccess(res, data);
+});

@@ -7,8 +7,9 @@
     >
       <!-- Logo -->
       <div class="flex items-center gap-3 px-5 py-5 border-b border-[var(--color-brand-200)]/50">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--color-accent-400)] to-[var(--color-accent-600)] flex items-center justify-center shadow-md border border-[var(--color-accent-400)]/50">
-          <span class="text-white font-bold text-sm">N</span>
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[var(--color-accent-400)] to-[var(--color-accent-600)] flex items-center justify-center shadow-md border border-[var(--color-accent-400)]/50 overflow-hidden">
+          <img v-if="auth.company?.logo" :src="auth.company.logo" class="w-full h-full object-cover" />
+          <span v-else class="text-white font-black text-sm">N</span>
         </div>
         <div>
           <p class="text-[var(--color-brand-900)] font-bold text-sm leading-none tracking-wide">NexoB2B</p>
@@ -136,15 +137,17 @@ const navItems = [
   { to: '/admin/integrations', icon: 'mdi:api',                    label: 'Integraciones' },
   { to: '/admin/customers',    icon: 'mdi:account-group-outline',  label: 'Clientes' },
   { to: '/admin/products',     icon: 'mdi:package-variant-closed', label: 'Catálogo' },
+  { to: '/admin/settings/email', icon: 'mdi:email-cog-outline',      label: 'Email SMTP' },
 ]
 
 const routeTitles: Record<string, string> = {
-  dashboard:    'Dashboard',
-  company:      'Mi Empresa',
-  integrations: 'Integraciones ERP',
-  customers:    'Clientes',
-  products:     'Catálogo de Productos',
-  profile:      'Mi Perfil',
+  dashboard:        'Dashboard',
+  company:          'Mi Empresa',
+  integrations:     'Integraciones ERP',
+  customers:        'Clientes',
+  products:         'Catálogo de Productos',
+  profile:          'Mi Perfil',
+  'email-settings': 'Configuración de Email',
 }
 const pageTitle = computed(() => routeTitles[route.name as string] ?? 'NexoB2B')
 const initials = computed(() => {

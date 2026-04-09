@@ -33,6 +33,13 @@ router.get('/queue/status', asyncHandler(async (req, res) => {
 
   const syncQueue = queues.find(q => q.name === QUEUE_NAME);
   
+  // Map pg-boss v12 states to what the frontend expects
+  const stats = syncQueue ? {
+    activeCount: syncQueue.activeCount ?? 0,
+    queuedCount: (syncQueue.queuedCount ?? 0) + (syncQueue.deferredCount ?? 0),
+    totalCount: syncQueue.totalCount ?? 0
+  } : { activeCount: 0, queuedCount: 0, totalCount: 0 };
+  
   // Enhance schedules with integration names
   const mappingIds = schedules.map(s => s.key);
   const mappings = await prisma.integrationMapping.findMany({
@@ -50,7 +57,7 @@ router.get('/queue/status', asyncHandler(async (req, res) => {
   });
 
   return sendSuccess(res, {
-    stats: syncQueue || null,
+    stats,
     schedules: enhancedSchedules,
     recentJobs
   });
@@ -280,13 +287,25 @@ router.post('/:id/sync', asyncHandler(async (req, res) => {
     return sendError(res, `No active mapping found for resource: ${resource}. Configure a mapping first.`, 400);
   }
 
-  // Enqueue jobs via pg-boss (persisted, retriable, high-volume)
+  // Register PENDING jobs in Prisma immediately so UI shows them as 'Activos Ahora' / 'Pending'
   const queueJobIds: (string | null)[] = [];
   for (const mapping of mappingsToSync) {
+    // 1. Create the persistent record in our DB
+    const syncJob = await prisma.integrationSyncJob.create({
+      data: {
+        integrationId: integration.id,
+        resource: mapping.resource,
+        status: 'PENDING',
+        triggeredBy: 'manual',
+      }
+    });
+
+    // 2. Enqueue in pg-boss, passing our internal syncJob.id
     const queueJobId = await enqueueSync({
       integrationId: integration.id,
       companyId: req.companyId!,
       mappingId: mapping.id,
+      syncJobId: syncJob.id,
       resource: mapping.resource,
       triggeredBy: 'manual',
     });

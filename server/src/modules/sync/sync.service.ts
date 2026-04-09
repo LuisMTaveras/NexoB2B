@@ -96,6 +96,7 @@ async function upsertProducts(
             brand: mapped.brand ? String(mapped.brand) : null,
             unit: mapped.unit ? String(mapped.unit) : null,
             imageUrl: mapped.imageUrl ? String(mapped.imageUrl) : null,
+            stock: mapped.stock !== undefined ? Number(mapped.stock) : 0,
             isActive: mapped.isActive !== false,
             syncedAt: new Date(),
           };
@@ -110,20 +111,31 @@ async function upsertProducts(
             update: { ...data, internalCode: undefined }, // don't overwrite internalCode
           });
 
-          // Upsert price if mapped
-          if (mapped.price !== undefined && mapped.priceListId !== undefined) {
-            const productId = (await prisma.product.findUnique({ where: { companyId_sku: { companyId, sku } }, select: { id: true } }))!.id;
+          // Upsert multiple prices if mapped (price1, price2, ..., price5)
+          const productId = (await prisma.product.findUnique({ where: { companyId_sku: { companyId, sku } }, select: { id: true } }))!.id;
+          
+          const priceListsToSync: Array<{ priceListId: string; price: number }> = [];
+
+          for (const [key, val] of Object.entries(mapped)) {
+            if (/^(price|precio)\d+$/i.test(key) && val !== undefined) {
+              const listNum = key.replace(/\D/g, '');
+              priceListsToSync.push({ priceListId: `LISTA_${listNum}`, price: Number(val) });
+            }
+          }
+
+          for (const { priceListId, price } of priceListsToSync) {
+            if (isNaN(price)) continue;
             await prisma.productPriceSnapshot.upsert({
-              where: { productId_priceListId: { productId, priceListId: String(mapped.priceListId) } },
+              where: { productId_priceListId: { productId, priceListId } },
               create: {
                 productId,
-                priceListId: String(mapped.priceListId),
-                price: Number(mapped.price),
+                priceListId,
+                price,
                 currency: String(mapped.currency ?? 'DOP'),
                 syncedAt: new Date(),
               },
               update: {
-                price: Number(mapped.price),
+                price,
                 currency: String(mapped.currency ?? 'DOP'),
                 syncedAt: new Date(),
               },
@@ -508,19 +520,33 @@ export async function runSyncJob(
   integrationId: string,
   companyId: string,
   mapping: MappingConfig,
+  existingJobId?: string,
 ): Promise<string> {
-  // Create job record
-  const job = await prisma.integrationSyncJob.create({
-    data: {
-      integrationId,
-      resource: mapping.resource,
-      status: 'RUNNING',
-      startedAt: new Date(),
-      triggeredBy: 'manual',
-    },
-  });
+  let jobId: string;
 
-  const jobId = job.id;
+  if (existingJobId) {
+    jobId = existingJobId;
+    // Update existing job to RUNNING
+    await prisma.integrationSyncJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'RUNNING',
+        startedAt: new Date(),
+      },
+    });
+  } else {
+    // Create new job record
+    const job = await prisma.integrationSyncJob.create({
+      data: {
+        integrationId,
+        resource: mapping.resource,
+        status: 'RUNNING',
+        startedAt: new Date(),
+        triggeredBy: 'manual',
+      },
+    });
+    jobId = job.id;
+  }
 
   // Run async (don't await — return jobId immediately)
   (async () => {

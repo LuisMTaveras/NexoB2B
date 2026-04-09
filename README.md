@@ -1,95 +1,86 @@
-# NexoB2B Platform 🚀
+# NexoB2B: Corporate Integration Ecosystem 🚀
 
-NexoB2B es una plataforma corporativa robusta diseñada para estandarizar las interacciones comerciales entre empresas (B2B). Cuenta con una arquitectura escalable lista para conectar clientes, proveedores e inventario sincronizado mediante ERPs, todo bajo un diseño premium inmaculado denominado **Liquid Frost Corporate**.
+NexoB2B es una plataforma SaaS de grado industrial diseñada para unificar y estandarizar la cadena de suministro digital entre empresas. Construida con una estética **Liquid Frost Corporate**, ofrece una experiencia inmersiva que combina robustez técnica con una interfaz ultra-moderna.
+
+---
+
+## ✨ Características Premium
+
+### 🔄 Hardened Sync Engine (Motor de Sincronización)
+Nuestro motor de sincronización ha sido diseñado para la resiliencia absoluta:
+- **Resiliencia de Red**: Implementación de **Exponential Backoff Retries** vía `axios-retry` para garantizar que ninguna fluctuación de red detenga la operación.
+- **Arquitectura Asíncrona**: Procesamiento en segundo plano con estados en tiempo real (Pending, Running, Success, Failed).
+- **Mapeo Dinámico**: Transformación de datos flexible que soporta rutas anidadas, constantes y concatenaciones complejas.
+- **Control de Concurrencia**: Gestión optimizada de escrituras en base de datos para evitar bloqueos y asegurar integridad.
+
+### 🎨 Diseño "Liquid Frost"
+Una interfaz que no solo es funcional, sino visualmente impactante:
+- **Efectos Glassmorphism**: Tarjetas con desenfoque de fondo y bordes de cristal inmaculados.
+- **Micro-Animaciones**: Feedback visual dinámico (shake en errores, success-pop en éxitos, spin en procesos).
+- **UX Guiada**: Nuevo **Integration Wizard** que simplifica la configuración de ERPs complejos en pasos lógicos.
+- **Tipografía Moderna**: Uso de familias tipográficas optimizadas para legibilidad de datos financieros.
+
+### 🤝 Colaboración B2B & Onboarding
+Gestión integral de la relación con el cliente desde una única interfaz:
+- **Invitaciones Seguras**: Flujo de invitación con tokens de un solo uso y expiración de 24 horas.
+- **Onboarding Guiado**: Portal público dedicado para que los clientes activen sus cuentas y definan sus credenciales de forma autónoma.
+- **Gestión de Usuarios**: Control granular de acceso para representantes de clientes.
+
+### 📧 Centro de Notificaciones SMTP
+Libertad total para gestionar las comunicaciones salientes:
+- **BYO SMTP (Bring Your Own SMTP)**: Configuración personalizada por usuario para Gmail, Outlook o servidores corporativos.
+- **Cifrado de Credenciales**: Almacenamiento seguro de llaves SMTP mediante cifrado simétrico AES-256.
+- **Estandarización de Marca**: Plantillas de correo "Sober Corporate" pre-diseñadas para una comunicación profesional.
+
+### 📈 Operation Analytics
+Visibilidad total sobre la integridad de los datos:
+- **Sync Health Monitoring**: Indicadores en tiempo real de la tasa de éxito de las sincronizaciones.
+- **Métricas de Volumen**: Gráficas de volumen diario para identificar patrones de tráfico y carga en el ERP.
+- **Acceso Rápido**: Accesos directos optimizados desde el dashboard a funciones críticas de gestión.
+
+### 📚 Documentación de API Nativa
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-El proyecto se sustenta bajo una arquitectura de **Monorepo** usando `npm workspaces`, aislando de manera limpia y estricta el Backend del Frontend, pero unificados por Typescript.
+El proyecto utiliza una arquitectura de Monorepo gestionada por `npm workspaces`.
 
-**Frontend (`/client`)**:
-- **Framework:** Vue 3 (Composition API, `<script setup>`)
-- **Herramienta de Construcción:** Vite (Alta velocidad)
-- **Estilos:** Tailwind CSS v4 (Moderno y nativo)
-- **Diseño UI:** Componentes corporativos *custom*, fondos *glassmorphism* reactivos y gráficos generativos mediante `vue-chartjs`.
-- **Manejo de Estado:** Pinia (Gestión reactiva global)
-- **Iconografía:** Unplugin Icons / Iconify (Colección inmensa de Material Design).
-
-**Backend (`/server`)**:
-- **Plataforma:** Node.js con Express
-- **Lenguaje:** TypeScript estricto
-- **Base de Datos:** PostgreSQL
-- **ORM:** Prisma (Migraciones seguras y tipado estricto)
-- **Autenticación:** JWT Seguro HTTP y Hasheo nativo usando `bcrypt`.
-- **Validaciones:** Zod (Esquemas unificados para todo payload).
-- **Documentación API:** `@scalar/express-api-reference` en endpoints embebidos.
+- **Frontend**: Vue 3 (Composition API), Tailwind CSS v4, Pinia, Chart.js.
+- **Backend**: Node.js, Express, TypeScript, Zod.
+- **Data Layer**: PostgreSQL + Prisma ORM.
+- **Infraestructura**: JWT Authentication, Winston Logger, Axios-Retry.
 
 ---
 
-## 💻 Requisitos del Sistema
-- **Node.js**: v20 o superior.
-- **Base de Datos**: PostgreSQL disponible.
+## 🚀 Instalación y Despliegue
 
-## 🚀 Guía de Instalación y Arranque
+1. **Dependencias**:
+   ```bash
+   npm install
+   ```
 
-1. **Clonar e Instalar Dependencias**
-El monorepo centraliza las dependencias. Bastará con correr la instalación principal en la raíz:
-```bash
-git clone https://github.com/LuisMTaveras/NexoB2B.git
-cd NexoB2B
-npm install
-```
+2. **Base de Datos**:
+   ```bash
+   npm run db:migrate
+   npm run db:seed
+   ```
 
-2. **Configuración de Variables de Entorno**
-Copia el archivo de ejemplo a un archivo `.env` tanto en la raíz como en `/server` (Prisma y el servidor lo requerirán):
-```bash
-cp .env.example .env
-cp .env.example server/.env
-```
-Asegura que `DATABASE_URL` y `JWT_SECRET` tengan valores válidos.
+3. **Entorno de Desarrollo**:
+   ```bash
+   npm run dev
+   ```
 
-3. **Migrar la Base de Datos e Inyectar Datos Iniciales**
-Desde la raíz del proyecto, usa los comandos centralizados para preparar tu base de datos PostgreSQL:
-```bash
-# Ejecutar migraciones
-npm run db:migrate
-
-# Inyectar datos iniciales (Seed)
-npm run db:seed
-```
-
-4. **Arrancar Entorno de Desarrollo**
-Puedes lanzar ambos servicios (Frontend y Backend) en paralelo con un solo comando desde la raíz:
-```bash
-npm run dev
-```
-O si prefieres lanzarlos por separado:
-- **API**: `npm run dev:server`
-- **Frontend**: `npm run dev:client`
-
-¡Todo estará en línea! 
-- **Frontend**: [http://localhost:5173](http://localhost:5173)
-- **API Docs (Scalar)**: [http://localhost:3000/docs](http://localhost:3000/docs)
+Acceso: [http://localhost:5173](http://localhost:5173)  
+API Docs: [http://localhost:3000/docs](http://localhost:3000/docs)
 
 ---
 
-## 🔑 Credenciales de Acceso (Entorno Dev)
-El proceso de *seeding* crea una empresa demostrativa y un administrador inicial:
-- **URL**: `http://localhost:5173/login`
+## 🔑 Credenciales Demo (Dev)
 - **Usuario**: `admin@demo.com`
-- **Password**: `Admin1234!`
-
-## 📊 Visualización de Datos (Prisma Studio)
-Para explorar y editar los datos de manera visual, puedes levantar Prisma Studio:
-```bash
-npm run db:studio
-```
-Estará disponible en [http://localhost:5555](http://localhost:5555).
+- **Contraseña**: `Admin1234!`
 
 ---
 
-## 🛡️ Estilo Arquitectónico y Diseño (*Corporate Liquid Frost*)
-El software rompe paradigmas simplistas para incorporar fondos dinámicos (`slowLiquid`), tarjetas acristaladas con `backdrop-blur`, e ingresos flotantes que inyectan una sofisticación técnica extrema, preservando la inmutabilidad de la información contable. El texto estático no es seleccionable para garantizar el tacto a una **Software-App Profesional nativa**.
+*Diseñado para el futuro del B2B. Optimizado para la excelencia operativa.*
 
-*Desarrollado y consolidado orgánicamente usando agentes automatizados y arquitectura dirigida.*

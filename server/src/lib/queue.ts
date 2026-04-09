@@ -7,6 +7,7 @@ export interface SyncJobPayload {
   integrationId: string;
   companyId: string;
   mappingId: string;
+  syncJobId?: string; // Internal Prisma record ID
   resource: string;
   triggeredBy: 'manual' | 'scheduler';
 }
@@ -21,20 +22,13 @@ export async function getQueue(): Promise<PgBoss> {
 
   boss = new PgBoss({
     connectionString,
-    retryLimit: 3,
-    retryDelay: 30,
-    retryBackoff: true,
-    expireInSeconds: 60 * 60 * 2,
-    deleteAfterSeconds: 60 * 60 * 24 * 7,
-    monitorStateIntervalSeconds: 30,
-    archiveCompletedAfterSeconds: 60 * 60 * 12,
+    monitorIntervalSeconds: 30,
   });
 
   boss.on('error', (error: Error) => logger.error('[Queue] pg-boss error:', error));
-  boss.on('monitor-states', (states: any) => {
-    logger.info('[Queue] state monitor', states);
-  });
-
+  // PgBoss v12 uses a diferentes events mapping. monitor-states is no longer a simple event with states.
+  // We can use the 'wip' event or similar if needed, or just remove for now if it causes issues.
+  
   await boss.start();
   // Ensure the queue exists before workers try to subscribe
   await boss.createQueue(QUEUE_NAME);
