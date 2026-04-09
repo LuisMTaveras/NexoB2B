@@ -57,8 +57,30 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--color-brand-100)]/50">
-            <tr v-if="loading" v-for="i in 5" :key="i" class="animate-pulse">
-              <td colspan="7" class="px-6 py-6"><div class="h-4 bg-[var(--color-brand-100)] rounded-full w-full"></div></td>
+            <tr v-if="loading" v-for="i in 8" :key="'skel'+i" class="animate-pulse">
+              <td class="px-6 py-5">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-slate-100 shadow-inner"></div>
+                  <div class="space-y-2">
+                    <div class="w-16 h-3 bg-slate-200 rounded"></div>
+                    <div class="w-12 h-2 bg-slate-100/80 rounded"></div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                 <div class="space-y-2">
+                    <div class="w-32 h-3 bg-slate-200 rounded"></div>
+                    <div class="w-20 h-2 bg-slate-100 rounded"></div>
+                 </div>
+              </td>
+              <td class="px-6 py-5 flex flex-col gap-2">
+                 <div class="w-24 h-3 bg-slate-100 rounded mt-2"></div>
+                 <div class="w-32 h-2 bg-slate-100/50 rounded"></div>
+              </td>
+              <td class="px-6 py-5"><div class="w-24 h-3 bg-slate-100 rounded"></div></td>
+              <td class="px-6 py-5 text-right"><div class="w-20 h-4 bg-slate-200 rounded ml-auto"></div></td>
+              <td class="px-6 py-5"><div class="w-16 h-6 bg-slate-100 rounded-full"></div></td>
+              <td class="px-6 py-5"><div class="flex gap-2 justify-center"><div class="w-8 h-8 bg-slate-100 rounded-lg"></div></div></td>
             </tr>
             <tr v-else-if="filteredOrders.length === 0" class="hover:bg-white/40 transition-colors">
               <td colspan="7" class="px-6 py-12 text-center">

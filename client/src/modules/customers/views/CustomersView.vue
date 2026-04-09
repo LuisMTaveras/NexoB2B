@@ -81,11 +81,22 @@
           <p class="px-4 text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">{{ filteredCustomers.length }} resultados</p>
         </div>
 
-        <div v-if="loading" class="py-20 flex flex-col items-center gap-4">
-          <div class="relative">
-            <div class="w-12 h-12 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin"></div>
+        <!-- Skeletons -->
+        <div v-if="loading" class="grid grid-cols-1 gap-3">
+          <div v-for="i in 8" :key="'skel'+i" class="card p-5 bg-white border border-slate-100 flex items-center gap-5 animate-pulse">
+            <div class="w-14 h-14 rounded-2xl bg-slate-100 shrink-0"></div>
+            <div class="flex-1 space-y-3">
+               <div class="flex items-center gap-3">
+                 <div class="h-4 bg-slate-200 rounded w-1/3"></div>
+                 <div class="h-3 bg-slate-100/60 rounded w-1/6"></div>
+               </div>
+               <div class="flex items-center gap-4">
+                 <div class="h-3 bg-slate-100/60 rounded w-1/4"></div>
+                 <div class="h-3 bg-slate-100/60 rounded w-1/4"></div>
+               </div>
+            </div>
+            <div class="w-20 h-6 bg-slate-100 rounded-lg"></div>
           </div>
-          <p class="text-sm font-medium text-slate-500">Cargando datos corporativos...</p>
         </div>
 
         <div v-else-if="filteredCustomers.length === 0" class="card py-24 flex flex-col items-center text-center bg-white border-dashed border-2 border-slate-200">
@@ -98,7 +109,7 @@
 
         <div v-else class="grid grid-cols-1 gap-3">
             <div 
-              v-for="c in filteredCustomers" 
+              v-for="c in displayedCustomers" 
               :key="c.id"
               class="card p-5 bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-md transition-all cursor-pointer group flex items-center gap-5"
               :class="{ 'border-indigo-500 ring-2 ring-indigo-50 bg-indigo-50/20': selectedId === c.id }"
@@ -137,6 +148,8 @@
                  </div>
               </div>
             </div>
+            <!-- Infinite Scroll Sentinel -->
+            <div ref="sentinelRef" class="h-8 w-full"></div>
         </div>
       </div>
 
@@ -352,7 +365,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useInfiniteScroll } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { useUiStore } from '@/stores/ui'
@@ -388,6 +402,27 @@ const filteredCustomers = computed(() => {
     c.internalCode?.toLowerCase().includes(s)
   )
 })
+
+// Client Side Lazy Loading
+const displayLimit = ref(20)
+
+const displayedCustomers = computed(() => {
+  return filteredCustomers.value.slice(0, displayLimit.value)
+})
+
+watch(search, () => {
+  displayLimit.value = 20
+})
+
+useInfiniteScroll(
+  window,
+  () => {
+    if (!loading.value && displayLimit.value < filteredCustomers.value.length) {
+      displayLimit.value += 20
+    }
+  },
+  { distance: 600 }
+)
 
 async function loadCustomers() {
   loading.value = true
@@ -541,7 +576,9 @@ function formatShortTime(d: string) {
   return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`
 }
 
-onMounted(loadCustomers)
+onMounted(() => {
+  loadCustomers()
+})
 </script>
 
 <style scoped>

@@ -80,15 +80,30 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-50">
-            <tr v-if="loading" v-for="i in 5" :key="i">
-              <td colspan="4" class="px-6 py-4 animate-pulse">
-                <div class="flex gap-4 items-center">
-                  <div class="w-10 h-10 bg-slate-100 rounded-xl"></div>
-                  <div class="space-y-2 flex-1">
-                    <div class="h-2 bg-slate-100 rounded w-1/4"></div>
-                    <div class="h-3 bg-slate-50 rounded w-1/2"></div>
-                  </div>
+            <tr v-if="loading" v-for="i in 8" :key="'skel'+i" class="animate-pulse border-b border-slate-50 relative">
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                   <div class="w-10 h-10 rounded-xl bg-slate-100 shrink-0 shadow-inner"></div>
+                   <div class="space-y-2 flex-1">
+                      <div class="h-3 bg-slate-200 rounded w-24"></div>
+                      <div class="h-2 bg-slate-100 rounded w-16"></div>
+                   </div>
                 </div>
+              </td>
+              <td class="px-6 py-4">
+                 <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-lg bg-slate-100 shadow-inner"></div>
+                    <div class="w-20 h-2 bg-slate-200 rounded"></div>
+                 </div>
+              </td>
+              <td class="px-6 py-4">
+                 <div class="space-y-2">
+                    <div class="h-3 bg-slate-200 rounded w-48"></div>
+                    <div class="h-2 bg-slate-100 rounded w-32"></div>
+                 </div>
+              </td>
+              <td class="px-6 py-4 text-right">
+                <div class="flex justify-end"><div class="w-8 h-8 rounded-lg bg-slate-100"></div></div>
               </td>
             </tr>
             <tr v-else-if="!logs.length" class="text-center py-20">

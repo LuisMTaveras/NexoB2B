@@ -59,16 +59,24 @@
 
     <!-- Product Grid -->
     <div class="relative min-h-[400px]">
-      <!-- Loading State -->
-      <div v-if="loading" class="absolute inset-0 z-20 flex items-center justify-center bg-transparent backdrop-blur-sm rounded-3xl">
-        <div class="flex flex-col items-center">
-          <Icon icon="mdi:loading" class="w-10 h-10 text-indigo-500 animate-spin" />
-          <p class="text-sm font-bold text-indigo-600 mt-4 animate-pulse">Cargando inventario...</p>
+      <!-- Skeletons (Initial Load) -->
+      <div v-if="loading && currentPage === 1" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
+        <div v-for="i in 12" :key="'skel'+i" class="bg-white/60 backdrop-blur-xl border border-white rounded-3xl p-4 flex flex-col shadow-sm animate-pulse min-h-[280px]">
+           <div class="aspect-square bg-slate-100/60 rounded-2xl mb-4 w-full"></div>
+           <div class="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+           <div class="h-3 bg-slate-100/80 rounded w-1/2 mb-4"></div>
+           <div class="flex justify-between items-end mt-auto">
+             <div class="flex flex-col gap-1 w-1/2">
+                <div class="h-2 bg-slate-100 rounded w-1/2"></div>
+                <div class="h-5 bg-slate-200 rounded w-3/4"></div>
+             </div>
+             <div class="h-6 w-16 bg-slate-100 rounded-lg"></div>
+           </div>
         </div>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="products.length === 0" class="flex flex-col items-center justify-center py-20 bg-white/40 backdrop-blur-xl border border-white/60 rounded-3xl shadow-sm text-center px-4">
+      <div v-else-if="!loading && products.length === 0" class="flex flex-col items-center justify-center py-20 bg-white/40 backdrop-blur-xl border border-white/60 rounded-3xl shadow-sm text-center px-4">
         <div class="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
           <Icon icon="mdi:package-variant-closed" class="w-12 h-12 text-indigo-200" />
         </div>
@@ -166,43 +174,19 @@
       </div>
     </div>
 
-    <!-- Pagination -->
-    <div v-if="totalPages > 1" class="flex items-center justify-between px-6 py-4 bg-white/60 backdrop-blur-xl border border-white/80 rounded-2xl shadow-sm">
-      <p class="text-xs font-medium text-slate-500">
-        Mostrando <span class="font-bold text-slate-800">{{ products.length }}</span> de <span class="font-bold text-slate-800">{{ totalProducts }}</span> productos
-      </p>
-      
-      <div class="flex items-center gap-2">
-        <button 
-          @click="changePage(currentPage - 1)" 
-          :disabled="currentPage === 1"
-          class="w-8 h-8 flex items-center justify-center rounded-xl transition-colors disabled:opacity-30"
-          :class="currentPage === 1 ? 'text-slate-400 bg-slate-50' : 'bg-white shadow-sm border border-slate-100 text-slate-700 hover:bg-slate-50 hover:text-indigo-600'"
-        >
-          <Icon icon="mdi:chevron-left" class="w-5 h-5" />
-        </button>
-        
-        <div class="flex items-center gap-1">
-          <span class="text-sm font-bold text-slate-700 bg-slate-100/80 px-3 py-1 rounded-lg">{{ currentPage }}</span>
-          <span class="text-sm font-medium text-slate-400">/</span>
-          <span class="text-sm font-medium text-slate-500">{{ totalPages }}</span>
-        </div>
-
-        <button 
-          @click="changePage(currentPage + 1)" 
-          :disabled="currentPage === totalPages"
-          class="w-8 h-8 flex items-center justify-center rounded-xl transition-colors disabled:opacity-30"
-          :class="currentPage === totalPages ? 'text-slate-400 bg-slate-50' : 'bg-white shadow-sm border border-slate-100 text-slate-700 hover:bg-slate-50 hover:text-indigo-600'"
-        >
-          <Icon icon="mdi:chevron-right" class="w-5 h-5" />
-        </button>
-      </div>
+    <!-- Infinite Scroll Sentinel -->
+    <div ref="sentinelRef" class="w-full h-10 mt-6 flex items-center justify-center">
+       <div v-if="loading && currentPage > 1" class="flex items-center gap-3 px-5 py-2.5 bg-white/70 backdrop-blur-xl rounded-full shadow-sm border border-slate-100">
+         <Icon icon="mdi:loading" class="w-5 h-5 text-indigo-500 animate-spin" />
+         <span class="text-xs font-black text-slate-500 uppercase tracking-widest">Cargando más...</span>
+       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
+import { useInfiniteScroll } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
@@ -227,7 +211,7 @@ const statusFilter = ref<'all' | 'visible' | 'hidden'>('all')
 let searchTimeout: any = null
 
 // Fetch logic
-const fetchProducts = async () => {
+const fetchProducts = async (append = false) => {
   loading.value = true
   try {
     const { data } = await api.get('/products', {
@@ -238,7 +222,13 @@ const fetchProducts = async () => {
         status: statusFilter.value
       }
     })
-    products.value = data.data
+    
+    if (append) {
+      products.value.push(...data.data)
+    } else {
+      products.value = data.data
+    }
+    
     totalProducts.value = data.meta.total
     totalPages.value = data.meta.totalPages
   } catch (error) {
@@ -247,6 +237,18 @@ const fetchProducts = async () => {
     loading.value = false
   }
 }
+
+// Observer Logic
+useInfiniteScroll(
+  window,
+  () => {
+    if (!loading.value && currentPage.value < totalPages.value) {
+      currentPage.value++
+      fetchProducts(true)
+    }
+  },
+  { distance: 600 }
+)
 
 // Handlers
 const onSearchInput = () => {
@@ -263,13 +265,7 @@ const setStatusFilter = (status: 'all' | 'visible' | 'hidden') => {
   fetchProducts()
 }
 
-const changePage = (page: number) => {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page
-    fetchProducts()
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-}
+
 
 const resetFilters = () => {
   searchQuery.value = ''
@@ -320,6 +316,7 @@ onMounted(() => {
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;  
   overflow: hidden;
 }

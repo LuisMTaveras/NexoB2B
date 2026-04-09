@@ -42,19 +42,31 @@ const router = createRouter({
           component: () => import('@/modules/dashboard/views/SalesAnalyticsView.vue'),
         },
         {
-          path: 'company',
-          name: 'company',
-          component: () => import('@/modules/company/views/CompanyView.vue'),
-        },
-        {
-          path: 'integrations',
-          name: 'integrations',
-          component: () => import('@/modules/integrations/views/IntegrationsView.vue'),
-        },
-        {
-          path: 'integrations/queue',
-          name: 'queue-monitor',
-          component: () => import('@/modules/integrations/views/QueueMonitorView.vue'),
+          path: 'settings',
+          component: () => import('@/modules/settings/views/SettingsLayout.vue'),
+          children: [
+            { path: '', redirect: '/admin/settings/company' },
+            {
+              path: 'company',
+              name: 'company',
+              component: () => import('@/modules/company/views/CompanyView.vue'),
+            },
+            {
+              path: 'integrations',
+              name: 'integrations',
+              component: () => import('@/modules/integrations/views/IntegrationsView.vue'),
+            },
+            {
+              path: 'integrations/queue',
+              name: 'queue-monitor',
+              component: () => import('@/modules/integrations/views/QueueMonitorView.vue'),
+            },
+            {
+              path: 'email',
+              name: 'email-settings',
+              component: () => import('@/modules/settings/views/EmailSettingsView.vue'),
+            },
+          ]
         },
         {
           path: 'customers',
@@ -81,11 +93,7 @@ const router = createRouter({
           name: 'profile',
           component: () => import('@/modules/profile/views/ProfileView.vue'),
         },
-        {
-          path: 'settings/email',
-          name: 'email-settings',
-          component: () => import('@/modules/settings/views/EmailSettingsView.vue'),
-        },
+
         {
           path: 'audit',
           name: 'audit-logs',

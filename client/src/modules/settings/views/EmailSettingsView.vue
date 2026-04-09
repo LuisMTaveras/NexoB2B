@@ -2,8 +2,11 @@
   <div class="max-w-4xl mx-auto">
     <div class="page-header">
       <div>
-        <h2 class="page-title text-2xl font-bold text-[var(--color-brand-900)]">Configuración de Email</h2>
-        <p class="page-subtitle text-[var(--color-brand-500)]">Configura tu servidor SMTP para enviar invitaciones y notificaciones.</p>
+        <h2 class="page-title text-2xl font-bold text-[var(--color-brand-900)] flex items-center gap-2">
+          <Icon icon="mdi:email-outline" class="w-7 h-7 text-amber-500" />
+          Configuración de Email
+        </h2>
+        <p class="page-subtitle text-[var(--color-brand-500)] mt-1">Configura tu servidor SMTP para enviar invitaciones y notificaciones.</p>
       </div>
     </div>
 

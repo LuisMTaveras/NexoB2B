@@ -134,14 +134,12 @@ const userMenuOpen = ref(false)
 const navItems = [
   { to: '/admin/dashboard',    icon: 'mdi:view-dashboard-outline', label: 'Monitor Sistema' },
   { to: '/admin/analytics',    icon: 'mdi:trophy-outline',          label: 'Ventas VIP' },
-  { to: '/admin/company',      icon: 'mdi:office-building-outline', label: 'Mi Empresa' },
-  { to: '/admin/integrations', icon: 'mdi:api',                    label: 'Integraciones' },
   { to: '/admin/customers',    icon: 'mdi:account-group-outline',  label: 'Clientes' },
   { to: '/admin/products',     icon: 'mdi:package-variant-closed', label: 'Catálogo' },
   { to: '/admin/orders',       icon: 'mdi:cart-outline',           label: 'Pedidos B2B' },
-  { to: '/admin/settings/email', icon: 'mdi:email-cog-outline',      label: 'Email SMTP' },
   { to: '/admin/support',      icon: 'mdi:face-agent',             label: 'Soporte' },
   { to: '/admin/audit',        icon: 'mdi:shield-search',          label: 'Auditoría' },
+  { to: '/admin/settings',     icon: 'mdi:cog-outline',            label: 'Configuraciones' },
 ]
 
 
