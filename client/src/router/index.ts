@@ -62,6 +62,16 @@ const router = createRouter({
           component: () => import('@/modules/products/views/ProductsView.vue'),
         },
         {
+          path: 'orders',
+          name: 'admin-orders',
+          component: () => import('@/modules/orders/views/AdminOrdersView.vue'),
+        },
+        {
+          path: 'support',
+          name: 'admin-support',
+          component: () => import('@/modules/support/views/SupportView.vue'),
+        },
+        {
           path: 'profile',
           name: 'profile',
           component: () => import('@/modules/profile/views/ProfileView.vue'),
@@ -107,12 +117,18 @@ const router = createRouter({
           component: () => import('@/modules/portal/views/PortalUsersView.vue'),
         },
         {
+          path: 'support',
+          name: 'portal-support',
+          component: () => import('@/modules/support/views/SupportView.vue'),
+        },
+        {
           path: 'profile',
           name: 'portal-profile',
           component: () => import('@/modules/portal/views/ProfileView.vue'),
         },
       ],
     },
+
 
     // ─── Root redirect ────────────────────────────────────────────
     { 

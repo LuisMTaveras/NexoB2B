@@ -368,4 +368,83 @@ router.get('/:id/jobs/:jobId/logs', asyncHandler(async (req, res) => {
   return sendSuccess(res, logs, undefined, 200, { total, page, limit, totalPages: Math.ceil(total / limit) });
 }));
 
+// ─── Smart Integration Tools ──────────────────────────────────────
+const SCHEMA_FIELDS: Record<string, string[]> = {
+  PRODUCTS: ['sku', 'name', 'description', 'price', 'currency', 'stock', 'imageUrl', 'category', 'brand', 'unit'],
+  CUSTOMERS: ['internalCode', 'name', 'email', 'taxId', 'phone', 'address', 'city', 'country'],
+  INVOICES: ['number', 'date', 'total', 'currency', 'status', 'dueDate'],
+  ORDERS: ['number', 'date', 'total', 'currency', 'status', 'notes']
+};
+
+/**
+ * POST /api/integrations/:id/smart/suggest
+ * Fetches sample data and suggests mappings based on name similarity
+ */
+router.post('/:id/smart/suggest', asyncHandler(async (req, res) => {
+  const { resource, endpoint } = req.body;
+  if (!resource || !SCHEMA_FIELDS[resource]) {
+    return sendError(res, 'Invalid resource for suggestion', 400);
+  }
+
+  const integration = await prisma.integration.findFirst({
+    where: { id: req.params.id, companyId: req.companyId! }
+  });
+  if (!integration) return sendNotFound(res);
+
+  const client = buildErpClient(
+    integration.baseUrl,
+    integration.authMethod as any,
+    integration.credentials as any,
+    (integration.headers as Record<string, string>) ?? {},
+  );
+
+  // 1. Fetch small sample
+  const response = await client.request({
+    method: 'GET',
+    url: endpoint,
+    params: { limit: 1, $top: 1, top: 1 } // try common limit params
+  });
+
+  // Extract keys from the first object found
+  let sampleObj: any = null;
+  const data = response.data;
+  
+  if (Array.isArray(data) && data.length > 0) sampleObj = data[0];
+  else if (data && typeof data === 'object') {
+     // Check for common data wrappers
+     const possibleArrays = Object.values(data).find(v => Array.isArray(v));
+     if (Array.isArray(possibleArrays) && possibleArrays.length > 0) sampleObj = possibleArrays[0];
+     else sampleObj = data;
+  }
+
+  if (!sampleObj) return sendError(res, 'Could not retrieve sample data from ERP', 400);
+
+  const erpKeys = Object.keys(sampleObj);
+  const internalFields = SCHEMA_FIELDS[resource]!;
+  const suggestedMappings: Record<string, string> = {};
+
+  // Simple similarity matching
+  internalFields.forEach(field => {
+    const fieldLower = field.toLowerCase();
+    
+    // Find best match in erpKeys
+    const match = erpKeys.find(key => {
+      const keyLower = key.toLowerCase();
+      return keyLower === fieldLower || 
+             keyLower.includes(fieldLower) || 
+             fieldLower.includes(keyLower) ||
+             (fieldLower === 'id' && keyLower === 'code') ||
+             (fieldLower === 'sku' && keyLower === 'itemcode');
+    });
+
+    if (match) suggestedMappings[field] = match;
+  });
+
+  return sendSuccess(res, {
+    suggestedMappings,
+    sampleKeys: erpKeys,
+    confidence: Object.keys(suggestedMappings).length / internalFields.length
+  }, 'Smart mapping suggestions generated');
+}));
+
 export default router;

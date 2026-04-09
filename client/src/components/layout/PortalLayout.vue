@@ -146,16 +146,18 @@ const navItems = computed(() => {
     { to: '/portal/catalog',   icon: 'mdi:storefront-outline',      label: 'Catálogo B2B' },
     { to: '/portal/orders',    icon: 'mdi:package-variant',         label: 'Mis Pedidos' },
     { to: '/portal/invoices',  icon: 'mdi:file-document-outline',   label: 'Facturación' },
+    { to: '/portal/support',   icon: 'mdi:headset',                 label: 'Ayuda B2B' },
   ]
   
   if (auth.user?.role === 'ADMIN') {
     items.push({ to: '/portal/team', icon: 'mdi:account-group-outline', label: 'Delegados' })
   }
   
-  items.push({ to: '/portal/profile',   icon: 'mdi:account-circle-outline',   label: 'Ajustes' })
+  items.push({ to: '/portal/profile',   icon: 'mdi:account-circle-outline',   label: 'Mi Perfil' })
   
   return items
 })
+
 
 const initials = computed(() => {
   const u = auth.user

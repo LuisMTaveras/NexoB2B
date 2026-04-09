@@ -78,10 +78,10 @@
                    <table class="w-full text-left border-collapse">
                       <thead>
                          <tr>
-                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--color-brand-100)]">Producto</th>
-                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--color-brand-100)] text-right">Cant.</th>
-                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--color-brand-100)] text-right">Precio Unit.</th>
-                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--color-brand-100)] text-right">Subtotal</th>
+                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--brand-100)]">Producto</th>
+                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--brand-100)] text-right">Cant.</th>
+                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--brand-100)] text-right">Precio Unit.</th>
+                            <th class="py-2 text-[10px] font-black text-[var(--color-brand-400)] uppercase tracking-widest border-b border-[var(--brand-100)] text-right">Subtotal</th>
                          </tr>
                       </thead>
                       <tbody class="text-sm font-medium">
@@ -97,8 +97,21 @@
                       </tbody>
                    </table>
                 </div>
+
+                <!-- Actions -->
+                <div class="mt-6 flex justify-end">
+                   <button 
+                     @click.stop="reorderOrder(order)"
+                     :disabled="reordering === order.id"
+                     class="px-4 py-2 bg-[var(--color-accent-600)] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                   >
+                      <Icon :icon="reordering === order.id ? 'mdi:loading' : 'mdi:repeat'" :class="{'animate-spin': reordering === order.id}" class="w-4 h-4" />
+                      {{ reordering === order.id ? 'Procesando...' : 'Repetir Pedido' }}
+                   </button>
+                </div>
              </div>
           </Transition>
+
        </div>
     </div>
   </div>
@@ -112,6 +125,8 @@ import api from '@/services/api'
 const orders = ref<any[]>([])
 const loading = ref(true)
 const expandedOrder = ref<string | null>(null)
+const reordering = ref<string | null>(null)
+
 
 const fetchOrders = async () => {
   loading.value = true
@@ -128,6 +143,21 @@ const fetchOrders = async () => {
 const toggleOrder = (id: string) => {
   expandedOrder.value = expandedOrder.value === id ? null : id
 }
+
+const reorderOrder = async (order: any) => {
+  if (reordering.value) return
+  reordering.value = order.id
+  try {
+    await api.post(`/portal/orders/${order.id}/reorder`)
+    alert('Repedido creado con éxito. Revisa el inicio de la lista.')
+    await fetchOrders()
+  } catch (err) {
+    console.error('Error reordering:', err)
+  } finally {
+    reordering.value = null
+  }
+}
+
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return ''

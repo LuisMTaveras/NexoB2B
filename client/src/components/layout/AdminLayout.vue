@@ -137,18 +137,25 @@ const navItems = [
   { to: '/admin/integrations', icon: 'mdi:api',                    label: 'Integraciones' },
   { to: '/admin/customers',    icon: 'mdi:account-group-outline',  label: 'Clientes' },
   { to: '/admin/products',     icon: 'mdi:package-variant-closed', label: 'Catálogo' },
+  { to: '/admin/orders',       icon: 'mdi:cart-outline',           label: 'Pedidos B2B' },
   { to: '/admin/settings/email', icon: 'mdi:email-cog-outline',      label: 'Email SMTP' },
+  { to: '/admin/support',      icon: 'mdi:face-agent',             label: 'Soporte' },
 ]
+
+
 
 const routeTitles: Record<string, string> = {
   dashboard:        'Dashboard',
   company:          'Mi Empresa',
   integrations:     'Integraciones ERP',
   customers:        'Clientes',
+  'admin-orders':    'Pedidos B2B',
   products:         'Catálogo de Productos',
   profile:          'Mi Perfil',
   'email-settings': 'Configuración de Email',
+  'admin-support':   'Tickets de Soporte',
 }
+
 const pageTitle = computed(() => routeTitles[route.name as string] ?? 'NexoB2B')
 const initials = computed(() => {
   const u = auth.user

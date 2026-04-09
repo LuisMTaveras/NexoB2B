@@ -352,7 +352,18 @@
               <div v-if="expandedResource === resource" class="p-4 space-y-4 border-t border-[var(--color-brand-200)]">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="label">Endpoint del ERP</label>
+                    <label class="label flex items-center justify-between">
+                      Endpoint del ERP
+                      <button 
+                        v-if="mappingForm[resource].externalEndpoint"
+                        @click="suggestMappings(resource)"
+                        class="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors px-2 py-1 bg-indigo-50 rounded-lg border border-indigo-100"
+                        :disabled="suggesting[resource]"
+                      >
+                         <Icon :icon="suggesting[resource] ? 'mdi:loading' : 'mdi:auto-fix'" :class="{'animate-spin': suggesting[resource]}" />
+                         {{ suggesting[resource] ? 'Analizando...' : 'Sugerir con IA' }}
+                      </button>
+                    </label>
                     <input v-model="mappingForm[resource].externalEndpoint" class="input font-mono text-sm" :placeholder="`/api/${resource.toLowerCase()}`" />
                   </div>
                   <div>
@@ -655,6 +666,8 @@ const expandedResource = ref<SyncResource | null>(null)
 const savingMapping = reactive<Record<string, boolean>>({})
 
 const mappingForm = reactive<Record<string, any>>({})
+const suggesting = reactive<Record<string, boolean>>({})
+
 
 // Logs modal
 const showLogsModal = ref(false)
@@ -875,6 +888,31 @@ async function saveMapping(resource: SyncResource) {
     savingMapping[resource] = false
   }
 }
+
+async function suggestMappings(resource: SyncResource) {
+  if (!selectedIntegration.value) return
+  const endpoint = mappingForm[resource].externalEndpoint
+  if (!endpoint) return
+
+  suggesting[resource] = true
+  try {
+    const res = await integrationsApi.suggestMappings(selectedIntegration.value.id, {
+      resource,
+      endpoint
+    })
+    
+    const { suggestedMappings } = res.data.data
+    // Merge suggestions into current fields
+    Object.assign(mappingForm[resource].fields, suggestedMappings)
+    
+    showToast('success', 'Se han aplicado sugerencias inteligentes para los campos.')
+  } catch (err: any) {
+    showToast('error', 'No se pudieron generar sugerencias. Verifica el endpoint.')
+  } finally {
+    suggesting[resource] = false
+  }
+}
+
 
 function applyPreset(resource: SyncResource) {
   const preset = mappingForm[resource].syncCronPreset

@@ -75,10 +75,15 @@
                 </span>
               </td>
               <td class="px-6 py-4 text-right">
-                 <button class="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-indigo-600 transition-colors border border-transparent hover:border-slate-200">
-                    <Icon icon="mdi:download-outline" class="w-4 h-4" />
+                 <button 
+                  @click="downloadInvoice(inv)"
+                  :disabled="downloading === inv.id"
+                  class="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-indigo-600 transition-colors border border-transparent hover:border-slate-200"
+                 >
+                    <Icon :icon="downloading === inv.id ? 'mdi:loading' : 'mdi:download-outline'" :class="{'animate-spin': downloading === inv.id}" class="w-4 h-4" />
                  </button>
               </td>
+
             </tr>
           </tbody>
         </table>
@@ -94,6 +99,8 @@ import api from '@/services/api'
 
 const invoices = ref<any[]>([])
 const loading = ref(true)
+const downloading = ref<string | null>(null)
+
 
 const totalInvoiced = computed(() => invoices.value.reduce((s, i) => s + Number(i.total), 0))
 const totalPaid = computed(() => invoices.value.filter(i => i.status === 'PAID').reduce((s, i) => s + Number(i.total), 0))
@@ -109,6 +116,27 @@ const fetchData = async () => {
     loading.value = false
   }
 }
+
+const downloadInvoice = async (inv: any) => {
+  if (downloading.value) return
+  downloading.value = inv.id
+  try {
+    const response = await api.get(`/portal/invoices/${inv.id}/pdf`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Factura_${inv.number}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err) {
+    console.error('Error downloading PDF:', err)
+    alert('No se pudo generar el PDF. Inténtalo de nuevo.')
+  } finally {
+    downloading.value = null
+  }
+}
+
 
 const formatCurrency = (val: number | string) => {
   return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' }).format(Number(val))

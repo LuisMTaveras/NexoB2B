@@ -244,5 +244,82 @@ export class EmailService {
       </html>
     `;
   }
+
+  /**
+
+   * Generates a notification template for Order Status updates.
+   */
+  static getOrderStatusTemplate(data: {
+    companyName: string;
+    orderNumber: string;
+    customerName: string;
+    newStatus: string;
+    total: string;
+    currency: string;
+  }) {
+    const statusIcons: any = {
+      CONFIRMED: '✅',
+      SHIPPED: '🚚',
+      DELIVERED: '📦',
+      CANCELLED: '❌'
+    };
+    const icon = statusIcons[data.newStatus] || '📋';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;700;800&display=swap');
+        </style>
+      </head>
+      <body style="background-color: #f1f5f9; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 40px 10px;">
+        <table width="100%" border="0" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="center">
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0;">
+                <tr>
+                  <td align="center" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 50px 40px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">${icon}</div>
+                    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 800;">Actualización de Pedido</h1>
+                    <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em;">${data.companyName}</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 40px; line-height: 1.6;">
+                    <h2 style="font-size: 20px; font-weight: 700; color: #0f172a; margin: 0 0 16px 0;">Hola, ${data.customerName}</h2>
+                    <p style="font-size: 15px; color: #475569; margin: 0 0 24px 0;">
+                      Te informamos que tu pedido <strong>${data.orderNumber}</strong> ha cambiado su estado a:
+                    </p>
+                    <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; text-align: center; margin-bottom: 30px;">
+                      <span style="font-size: 18px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.05em;">${data.newStatus}</span>
+                    </div>
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-top: 1px solid #f1f5f9; padding-top: 20px;">
+                      <tr>
+                        <td style="font-size: 13px; color: #64748b;"><strong>Monto Total:</strong></td>
+                        <td align="right" style="font-size: 16px; font-weight: 800; color: #0f172a;">${data.currency} ${data.total}</td>
+                      </tr>
+                    </table>
+                    <p style="font-size: 14px; color: #475569; margin: 30px 0 0 0;">
+                      Puedes consultar el detalle completo y dar seguimiento en tu portal de cliente.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="background-color: #f8fafc; padding: 24px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8;">
+                    Este es un correo automático, por favor no respondas directamente.<br>
+                    © ${new Date().getFullYear()} ${data.companyName}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+  }
 }
+
 

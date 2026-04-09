@@ -80,6 +80,21 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+
 // ─── Company (Tenant) ────────────────────────────────────────────
 
 model Company {
@@ -105,7 +120,9 @@ model Company {
   invoices      Invoice[]
   receivables   AccountReceivable[]
   orders        Order[]
+  tickets       Ticket[]
   auditLogs     AuditLog[]
+
 }
 
 model CompanyBranding {
@@ -271,6 +288,8 @@ model Customer {
   invoices        Invoice[]
   receivables     AccountReceivable[]
   orders          Order[]
+  tickets         Ticket[]
+
 
   @@unique([companyId, externalId])
   @@unique([companyId, internalCode])
@@ -292,7 +311,10 @@ model CustomerUser {
   updatedAt    DateTime     @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orders   Order[]  @relation("SubmittedBy")
+  tickets  Ticket[] @relation("RaisedBy")
   tokens   VerificationToken[]
+
 
   @@index([customerId])
 }
@@ -435,15 +457,18 @@ model Order {
   syncedAt     DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+  submittedById String?
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer   Customer    @relation(fields: [customerId], references: [id])
+  submittedBy CustomerUser? @relation("SubmittedBy", fields: [submittedById], references: [id])
   items      OrderItem[]
 
   @@unique([companyId, externalId])
   @@index([companyId])
   @@index([customerId])
 }
+
 
 model OrderItem {
   id        String  @id @default(cuid())
@@ -483,3 +508,41 @@ model AuditLog {
   @@index([userId])
   @@index([createdAt])
 }
+
+// ─── Support Tickets ─────────────────────────────────────────────
+
+model Ticket {
+  id           String         @id @default(cuid())
+  companyId    String
+  customerId   String
+  raisedById   String?
+  subject      String
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(MEDIUM)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  raisedBy CustomerUser? @relation("RaisedBy", fields: [raisedById], references: [id])
+  messages TicketMessage[]
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  senderId  String?  // Can be InternalUser.id or CustomerUser.id
+  senderType String  // "INTERNAL" | "CUSTOMER"
+  senderName String
+  body      String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+

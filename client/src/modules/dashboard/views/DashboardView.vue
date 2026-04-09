@@ -138,7 +138,93 @@
       </div>
     </div>
 
-    <!-- Quick actions secondary section -->
+    <!-- AI Insights & ERP Health (NEW) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+      
+      <!-- Churn Alerts / At-Risk Customers -->
+      <div class="card p-6 bg-white shadow-sm border-slate-100 flex flex-col h-full">
+        <div class="flex items-center justify-between mb-6">
+           <h3 class="font-bold text-[var(--color-brand-900)] text-sm flex items-center gap-2 uppercase tracking-widest">
+             <Icon icon="mdi:alert-decagram" class="text-rose-500 w-5 h-5" />
+             Alertas de Abandono (Churn)
+           </h3>
+           <span v-if="insights?.atRiskCustomers?.length" class="badge badge-danger text-[9px]">{{ insights.atRiskCustomers.length }}</span>
+        </div>
+        
+        <div class="flex-1 space-y-4">
+          <div v-if="!insights?.atRiskCustomers?.length" class="flex flex-col items-center justify-center py-10 text-center">
+             <Icon icon="mdi:check-decagram-outline" class="w-10 h-10 text-emerald-200 mb-2" />
+             <p class="text-xs font-bold text-slate-400">Todos tus clientes están activos</p>
+          </div>
+          <div v-for="customer in insights?.atRiskCustomers" :key="customer.id" class="flex items-center gap-3 p-3 rounded-xl bg-rose-50/30 border border-rose-100/50">
+             <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center text-xs font-black">
+                {{ customer.name[0] }}
+             </div>
+             <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-slate-800 truncate">{{ customer.name }}</p>
+                <p class="text-[9px] text-rose-600 font-bold uppercase">{{ customer.daysInactive }} días inactivo</p>
+             </div>
+             <button class="p-1.5 hover:bg-white rounded-lg text-rose-400 hover:text-rose-600 transition-colors">
+                <Icon icon="mdi:email-outline" class="w-4 h-4" />
+             </button>
+          </div>
+        </div>
+        
+        <button class="mt-6 w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 transition-colors">
+          Ver reporte completo
+        </button>
+      </div>
+
+      <!-- ERP Health Status -->
+      <div class="card p-6 bg-slate-900 text-white border-none shadow-xl lg:col-span-2 flex flex-col h-full overflow-hidden relative group">
+        <!-- Decorative background element -->
+        <div class="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all duration-700"></div>
+        
+        <div class="flex items-center justify-between mb-8 relative z-10">
+           <div>
+             <h3 class="font-bold text-white text-sm flex items-center gap-2 uppercase tracking-widest">
+               <Icon icon="mdi:heart-pulse" class="text-emerald-400 w-5 h-5" />
+               Estado de Conexiones ERP
+             </h3>
+             <p class="text-[9px] text-slate-400 font-bold uppercase mt-1">Monitoreo proactivo de latencia y disponibilidad</p>
+           </div>
+           <button @click="fetchDashboardData" class="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors">
+             <Icon icon="mdi:refresh" class="w-4 h-4 text-slate-400" />
+           </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+           <div v-for="erp in insights?.erpHealth" :key="erp.id" class="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 transition-all">
+              <div class="flex items-center justify-between mb-3">
+                 <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full shadow-[0_0_8px]" :class="erp.isDown ? 'bg-rose-500 shadow-rose-500/50' : 'bg-emerald-500 shadow-emerald-500/50'"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">{{ erp.name }}</span>
+                 </div>
+                 <span class="text-[9px] font-mono text-slate-500">{{ erp.type }}</span>
+              </div>
+              
+              <div class="flex items-end justify-between">
+                 <div>
+                    <p class="text-[10px] text-slate-400 font-bold mb-1">Última Sincronización</p>
+                    <p class="text-xs font-bold">{{ erp.lastSync ? new Date(erp.lastSync).toLocaleTimeString() : 'Nunca' }}</p>
+                 </div>
+                 <div class="text-right">
+                    <p class="text-[9px] font-black uppercase tracking-tighter" :class="erp.isDown ? 'text-rose-400' : 'text-emerald-400'">
+                       {{ erp.isDown ? 'Offline' : 'Online' }}
+                    </p>
+                    <p class="text-[10px] text-slate-500 font-bold mt-0.5">{{ erp.recordsProcessed }} registros</p>
+                 </div>
+              </div>
+           </div>
+           
+           <div v-if="!insights?.erpHealth?.length" class="col-span-2 py-12 flex flex-col items-center justify-center opacity-30">
+              <Icon icon="mdi:cloud-off-outline" class="w-12 h-12 mb-2" />
+              <p class="text-xs font-bold uppercase">No hay integraciones configuradas</p>
+           </div>
+        </div>
+      </div>
+    </div>
+
     <div class="mt-8">
         <h3 class="font-bold text-brand-900 mb-4 text-sm uppercase tracking-widest">Accesos Directos</h3>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -208,6 +294,8 @@ const stats = ref([
 const activeIntegrationsCount = ref(0)
 const hasRevenueData = ref(false)
 const syncHealth = ref({ successRate: 0, totalRecords: 0 })
+const insights = ref<any>(null)
+
 
 const chartDataRevenue = ref({
   labels: [] as string[],
@@ -322,6 +410,8 @@ const fetchDashboardData = async () => {
     
     activeIntegrationsCount.value = result.overview.activeIntegrations
     syncHealth.value = result.charts.syncHealth
+    insights.value = result.insights
+
 
     // Update charts
     const revenueSum = result.charts.revenue.data.reduce((a: number, b: number) => a + b, 0)

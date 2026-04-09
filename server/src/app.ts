@@ -16,8 +16,13 @@ import integrationsRoutes from './modules/integrations/integrations.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import customersRoutes from './modules/customers/customers.routes';
 import settingsRoutes from './modules/settings/settings.routes';
-import portalRoutes from './modules/portal/portal.routes';
 import productsRoutes from './modules/products/products.routes';
+import supportRoutes from './modules/support/support.routes';
+import ordersRoutes from './modules/orders/orders.routes';
+import portalRoutes from './modules/portal/portal.routes';
+
+
+
 
 const app = express();
 
@@ -65,6 +70,10 @@ app.use('/api/customers', customersRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/orders', ordersRoutes);
+
+
 
 // ─── 404 Handler ─────────────────────────────────────────────────
 app.use((_req, res) => {

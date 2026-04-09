@@ -61,6 +61,7 @@ export const integrationsApi = {
   jobs: (id: string, params?: any) => api.get(`/integrations/${id}/jobs`, { params }),
   jobLogs: (id: string, jobId: string, params?: any) => api.get(`/integrations/${id}/jobs/${jobId}/logs`, { params }),
   getQueueStatus: () => api.get<{ success: boolean; data: any }>('/integrations/queue/status'),
+  suggestMappings: (id: string, data: { resource: string; endpoint: string }) => api.post(`/integrations/${id}/smart/suggest`, data),
 }
 
 export const RESOURCE_LABELS: Record<SyncResource, string> = {

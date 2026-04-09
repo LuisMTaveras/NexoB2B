@@ -221,6 +221,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
     data: {
       companyId,
       customerId,
+      submittedById: req.user!.userId,
       number: numberStr,
       date: new Date(),
       status: 'OPEN',
@@ -237,6 +238,113 @@ router.post('/orders', asyncHandler(async (req, res) => {
   });
 
   return sendSuccess(res, order);
+}));
+
+/**
+ * POST /api/portal/orders/:id/reorder
+ * Duplicates an existing order's items into the customer's current session/cart
+ * Or creates a new order directly if preferred (we'll implement direct creation here)
+ */
+router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const existingOrder = await prisma.order.findFirst({
+    where: { id: req.params.id, customerId: customerUser.customerId, companyId: req.companyId! },
+    include: { items: true }
+  });
+
+  if (!existingOrder) return sendNotFound(res, 'Original order not found');
+
+  // Create new order identity
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  const numberStr = `ORD-${dateStr}-${randNum}-RE`;
+
+  const newOrder = await prisma.order.create({
+    data: {
+      companyId: req.companyId!,
+      customerId: customerUser.customerId,
+      submittedById: req.user!.userId,
+      number: numberStr,
+      date: new Date(),
+      status: 'OPEN',
+      total: existingOrder.total,
+      currency: existingOrder.currency,
+      notes: `Re-pedido del anterior ${existingOrder.number}`,
+      items: {
+        create: existingOrder.items.map(i => ({
+          productId: i.productId,
+          sku: i.sku,
+          name: i.name,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          total: i.total
+        }))
+      }
+    },
+    include: { items: true }
+  });
+
+  return sendSuccess(res, newOrder, 'Re-pedido creado con éxito');
+}));
+
+/**
+ * GET /api/portal/invoices/:id/pdf
+ * Generates and downloads the PDF version of the invoice
+ */
+import { PdfService } from './pdf.service';
+
+router.get('/invoices/:id/pdf', asyncHandler(async (req, res) => {
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: req.params.id, customerId: customerUser.customerId, companyId: req.companyId! },
+    include: {
+      company: { include: { branding: true } },
+      customer: true
+    }
+  });
+
+  if (!invoice) return sendNotFound(res, 'Factura no encontrada');
+
+  // We don't have detailed items in Invoice model (it's often a summary from ERP)
+  // But we can show the summary or if it has orders related, show items.
+  // For now, let's create a generic item from the invoice total.
+  const dummyItems = [{
+    sku: 'FACTURA',
+    name: `Resumen de compra - ${invoice.number}`,
+    quantity: '1',
+    unitPrice: invoice.subtotal.toString(),
+    total: invoice.subtotal.toString()
+  }];
+
+  const pdfBuffer = await PdfService.generateInvoicePdf({
+    invoiceNumber: invoice.number,
+    date: invoice.date.toLocaleDateString(),
+    customerName: invoice.customer.name,
+    customerTaxId: invoice.customer.taxId || undefined,
+    items: dummyItems,
+    subtotal: invoice.subtotal.toString(),
+    tax: invoice.tax.toString(),
+    total: invoice.total.toString(),
+    currency: invoice.currency,
+    companyName: invoice.company.name,
+    companyLogo: invoice.company.logo ? `/api/companies/logo/${invoice.companyId}` : undefined
+  });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=Factura_${invoice.number}.pdf`);
+  return res.send(pdfBuffer);
 }));
 
 export default router;

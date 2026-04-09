@@ -118,6 +118,68 @@ export async function getDashboardData(companyId: string) {
     }
   });
 
+  // 5. Churn Analysis (Customers at risk)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  const churnData = await prisma.customer.findMany({
+    where: { 
+      companyId, 
+      status: 'ACTIVE',
+      orders: {
+        none: { date: { gte: thirtyDaysAgo } }
+      }
+    },
+    select: {
+      id: true,
+      name: true,
+      internalCode: true,
+      orders: {
+        orderBy: { date: 'desc' },
+        take: 1,
+        select: { date: true }
+      }
+    },
+    take: 10
+  });
+
+  const atRiskCustomers = churnData.map(c => ({
+    id: c.id,
+    name: c.name,
+    code: c.internalCode,
+    lastOrder: c.orders[0]?.date || null,
+    daysInactive: c.orders[0] 
+      ? Math.floor((new Date().getTime() - new Date(c.orders[0].date).getTime()) / (1000 * 60 * 60 * 24))
+      : 999
+  })).sort((a, b) => b.daysInactive - a.daysInactive);
+
+  // 6. ERP Integration Health Summary
+  const integrations = await prisma.integration.findMany({
+    where: { companyId, isActive: true },
+    include: {
+      syncJobs: {
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      }
+    }
+  });
+
+  const erpHealth = integrations.map(i => {
+    const lastJob = i.syncJobs[0];
+    return {
+      id: i.id,
+      name: i.name,
+      type: i.type,
+      status: lastJob?.status || 'UNKNOWN',
+      lastSync: lastJob?.createdAt || null,
+      recordsProcessed: (lastJob?.recordsOk || 0) + (lastJob?.recordsFailed || 0),
+      isDown: lastJob?.status === 'FAILED'
+    };
+  });
+
   return {
     overview: {
       activeCustomers,
@@ -130,6 +192,10 @@ export async function getDashboardData(companyId: string) {
       orderDistribution: orderStatsDistribution,
       revenue: revenueChart,
       syncHealth: syncStats,
+    },
+    insights: {
+      atRiskCustomers,
+      erpHealth
     }
   };
 }
