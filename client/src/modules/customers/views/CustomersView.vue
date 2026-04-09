@@ -16,10 +16,14 @@
          <button class="btn border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm" @click="loadCustomers">
             <Icon icon="mdi:refresh" :class="{ 'animate-spin': loading }" />
          </button>
-         <button class="btn btn-primary shadow-lg shadow-indigo-200" @click="syncCustomers" :disabled="syncing">
+          <button class="btn btn-primary shadow-lg shadow-indigo-200" @click="syncCustomers" :disabled="syncing">
             <Icon icon="mdi:sync" :class="{ 'animate-spin': syncing }" />
             {{ syncing ? 'Sincronizando...' : 'Sincronizar ERP' }}
-         </button>
+          </button>
+          <button class="btn bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-sm flex items-center gap-2" @click="exportCustomers" :disabled="exporting">
+            <Icon icon="mdi:file-export-outline" class="w-5 h-5" />
+            {{ exporting ? 'Generando...' : 'Exportar' }}
+          </button>
       </div>
     </div>
 
@@ -362,6 +366,7 @@ const selectedId = ref('')
 const selectedCustomer = ref<any>(null)
 const selectedFullData = ref<any>(null)
 const detailLoading = ref(false)
+const exporting = ref(false)
 
 const showInviteModal = ref(false)
 const inviting = ref(false)
@@ -439,6 +444,25 @@ async function syncCustomers() {
     ui.alert('Error', 'No se pudo iniciar la sincronización.', 'error')
   } finally {
     syncing.value = false
+  }
+}
+
+async function exportCustomers() {
+  exporting.value = true
+  try {
+    const response = await api.get('/customers/export', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `clientes_nexob2b_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err) {
+    console.error('Error exporting customers:', err)
+    ui.alert('Error', 'No se pudo generar la exportación.', 'error')
+  } finally {
+    exporting.value = false
   }
 }
 

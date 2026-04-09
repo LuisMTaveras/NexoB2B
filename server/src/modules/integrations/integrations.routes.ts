@@ -8,6 +8,7 @@ import { buildErpClient } from '../../lib/erpClient';
 import { runSyncJob } from '../sync/sync.service';
 import { enqueueSync, getQueue, QUEUE_NAME } from '../../lib/queue';
 import { upsertMappingSchedule, removeMappingSchedule } from '../../lib/scheduler';
+import { logAction } from '../../lib/audit';
 
 const router = Router();
 router.use(authenticate, requireInternalUser);
@@ -94,6 +95,24 @@ router.post('/', asyncHandler(async (req, res) => {
   const integration = await prisma.integration.create({
     data: { ...data, credentials: data.credentials as any, headers: data.headers as any, companyId: req.companyId! },
   });
+
+  // Audit integration creation
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'INTEGRATION_CREATED',
+    resource: 'Integration',
+    resourceId: integration.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { 
+      name: integration.name,
+      type: integration.type,
+      newData: integration
+    }
+  });
+
   return sendCreated(res, integration, 'Integration created');
 }));
 
@@ -123,6 +142,25 @@ router.patch('/:id', asyncHandler(async (req, res) => {
       ...(headers && { headers }),
     },
   });
+
+  // Audit integration update
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'INTEGRATION_UPDATED',
+    resource: 'Integration',
+    resourceId: updated.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { 
+      name: updated.name,
+      changedFields: Object.keys(req.body),
+      oldData: existing,
+      newData: updated
+    }
+  });
+
   return sendSuccess(res, updated, 'Integration updated');
 }));
 
@@ -131,6 +169,23 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   const existing = await prisma.integration.findFirst({ where: { id: req.params.id, companyId: req.companyId! } });
   if (!existing) return sendNotFound(res);
   await prisma.integration.delete({ where: { id: req.params.id } });
+
+  // Audit integration deletion
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'INTEGRATION_DELETED',
+    resource: 'Integration',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { 
+      name: existing.name,
+      oldData: existing
+    }
+  });
+
   return sendSuccess(res, null, 'Integration deleted');
 }));
 
@@ -225,6 +280,23 @@ router.post('/:id/mappings', asyncHandler(async (req, res) => {
   // Register or update cron schedule in pg-boss
   await upsertMappingSchedule(mapping.id);
 
+  // Audit mapping update/save
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'INTEGRATION_MAPPING_SAVED',
+    resource: 'IntegrationMapping',
+    resourceId: mapping.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { 
+      resource: mapping.resource,
+      oldData: existing,
+      newData: mapping
+    }
+  });
+
   return sendCreated(res, mapping, 'Mapping saved');
 }));
 
@@ -252,6 +324,19 @@ router.patch('/:id/mappings/:mappingId', asyncHandler(async (req, res) => {
 router.delete('/:id/mappings/:mappingId', asyncHandler(async (req, res) => {
   await removeMappingSchedule(req.params.mappingId);
   await prisma.integrationMapping.delete({ where: { id: req.params.mappingId } });
+
+  // Audit mapping deletion
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'INTEGRATION_MAPPING_DELETED',
+    resource: 'IntegrationMapping',
+    resourceId: req.params.mappingId,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+
   return sendSuccess(res, null, 'Mapping deleted');
 }));
 
@@ -311,6 +396,19 @@ router.post('/:id/sync', asyncHandler(async (req, res) => {
     });
     queueJobIds.push(queueJobId);
   }
+
+  // Audit manual sync trigger
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'INTEGRATION_SYNC_TRIGGERED',
+    resource: 'Integration',
+    resourceId: integration.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { resource }
+  });
 
   return res.status(202).json({
     success: true,

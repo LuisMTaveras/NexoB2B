@@ -5,6 +5,8 @@ import { EmailService } from '../../lib/email.service';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { env } from '../../config/env';
+import { logAction } from '../../lib/audit';
+import { exportToCsv } from '../../utils/csvExport';
 
 export const listCustomers = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -183,6 +185,27 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
       });
     }
 
+    // Audit invitation
+    await logAction({
+      companyId,
+      userId: senderId,
+      userEmail: userPayload.email,
+      action: 'CUSTOMER_USER_INVITED',
+      resource: 'CustomerUser',
+      resourceId: user!.id,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: { 
+        customerId, 
+        email, 
+        role: role || 'BUYER',
+        firstName,
+        lastName,
+        customerName: customer.name,
+        newData: user
+      }
+    });
+
     res.json({ success: true, message: 'Invitación enviada correctamente' });
   } catch (error) {
     next(error);
@@ -256,18 +279,36 @@ export const updateCustomer = async (req: Request, res: Response, next: NextFunc
   try {
     const { id } = req.params;
     const companyId = (req as any).user.companyId;
-    const { maxUsers, status, portalEnabled } = req.body;
+    const original = await prisma.customer.findUnique({ where: { id } });
 
-    const customer = await prisma.customer.update({
+    const { maxUsers, status, portalEnabled } = req.body;
+    const updated = await prisma.customer.update({
       where: { id, companyId },
       data: {
-        maxUsers: maxUsers !== undefined ? Number(maxUsers) : undefined,
-        status,
-        portalEnabled
+        ...(maxUsers !== undefined && { maxUsers: Number(maxUsers) }),
+        ...(status !== undefined && { status }),
+        ...(portalEnabled !== undefined && { portalEnabled }),
+      },
+    });
+
+    // Audit update
+    await logAction({
+      companyId,
+      userId: (req as any).user.userId || (req as any).user.id,
+      userEmail: (req as any).user.email,
+      action: 'CUSTOMER_UPDATED',
+      resource: 'Customer',
+      resourceId: id,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: { 
+        changedFields: Object.keys(req.body),
+        oldData: original,
+        newData: updated
       }
     });
 
-    res.json({ success: true, data: customer });
+    res.json({ success: true, data: updated });
   } catch (error) {
     next(error);
   }
@@ -323,21 +364,83 @@ export const updateCustomerUserStatus = async (req: Request, res: Response, next
     }
 
     // Verify user belongs to a customer of this company
-    const user = await prisma.customerUser.findUnique({
+    const originUser = await prisma.customerUser.findUnique({
       where: { id: userId },
       include: { customer: true }
     });
 
-    if (!user || user.customer.companyId !== companyId) {
+    if (!originUser || originUser.customer.companyId !== companyId) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
+
+    const { customer, ...originalData } = originUser;
 
     const updated = await prisma.customerUser.update({
       where: { id: userId },
       data: { status }
     });
 
+    // Audit status update
+    await logAction({
+      companyId,
+      userId: (req as any).user.userId || (req as any).user.id,
+      userEmail: (req as any).user.email,
+      action: 'CUSTOMER_USER_STATUS_UPDATED',
+      resource: 'CustomerUser',
+      resourceId: userId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: { 
+        oldStatus: originalData.status,
+        newStatus: status,
+        userEmail: updated.email,
+        oldData: originalData,
+        newData: updated
+      }
+    });
+
     res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const exportCustomers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const companyId = (req as any).user.companyId;
+
+    const customers = await prisma.customer.findMany({
+      where: { companyId },
+      include: {
+        _count: { select: { users: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const exportData = customers.map(c => ({
+      Nombre: c.name,
+      CodigoInterno: c.internalCode,
+      TaxId: c.taxId,
+      Estado: c.status,
+      PortalHabilitado: c.portalEnabled ? 'SI' : 'NO',
+      MaxUsuarios: c.maxUsers,
+      UsuariosActivos: c._count.users,
+      FechaRegistro: c.createdAt.toISOString().split('T')[0]
+    }));
+
+    // Audit export
+    await logAction({
+      companyId,
+      userId: (req as any).user.userId || (req as any).user.id,
+      userEmail: (req as any).user.email,
+      action: 'CUSTOMERS_EXPORTED',
+      resource: 'Customer',
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: { count: exportData.length }
+    });
+
+    return exportToCsv(res, `clientes_nexob2b_${new Date().toISOString().split('T')[0]}`, exportData);
   } catch (error) {
     next(error);
   }

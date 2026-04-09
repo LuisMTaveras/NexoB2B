@@ -132,7 +132,8 @@ const sidebarOpen = ref(true)
 const userMenuOpen = ref(false)
 
 const navItems = [
-  { to: '/admin/dashboard',    icon: 'mdi:view-dashboard-outline', label: 'Dashboard' },
+  { to: '/admin/dashboard',    icon: 'mdi:view-dashboard-outline', label: 'Monitor Sistema' },
+  { to: '/admin/analytics',    icon: 'mdi:trophy-outline',          label: 'Ventas VIP' },
   { to: '/admin/company',      icon: 'mdi:office-building-outline', label: 'Mi Empresa' },
   { to: '/admin/integrations', icon: 'mdi:api',                    label: 'Integraciones' },
   { to: '/admin/customers',    icon: 'mdi:account-group-outline',  label: 'Clientes' },
@@ -140,12 +141,14 @@ const navItems = [
   { to: '/admin/orders',       icon: 'mdi:cart-outline',           label: 'Pedidos B2B' },
   { to: '/admin/settings/email', icon: 'mdi:email-cog-outline',      label: 'Email SMTP' },
   { to: '/admin/support',      icon: 'mdi:face-agent',             label: 'Soporte' },
+  { to: '/admin/audit',        icon: 'mdi:shield-search',          label: 'Auditoría' },
 ]
 
 
 
 const routeTitles: Record<string, string> = {
-  dashboard:        'Dashboard',
+  dashboard:        'Monitor de Sistema',
+  'sales-analytics': 'Inteligencia de Ventas',
   company:          'Mi Empresa',
   integrations:     'Integraciones ERP',
   customers:        'Clientes',
@@ -154,6 +157,7 @@ const routeTitles: Record<string, string> = {
   profile:          'Mi Perfil',
   'email-settings': 'Configuración de Email',
   'admin-support':   'Tickets de Soporte',
+  'audit-logs':      'Logs de Auditoría',
 }
 
 const pageTitle = computed(() => routeTitles[route.name as string] ?? 'NexoB2B')

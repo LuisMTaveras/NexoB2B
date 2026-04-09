@@ -4,6 +4,8 @@ import { asyncHandler } from '../../utils/asyncHandler';
 import { sendSuccess, sendNotFound } from '../../utils/apiResponse';
 import { authenticate, requireInternalUser } from '../../middleware/auth';
 import { EmailService } from '../../lib/email.service';
+import { exportToCsv } from '../../utils/csvExport';
+import { logAction } from '../../lib/audit';
 
 const router = Router();
 router.use(authenticate, requireInternalUser);
@@ -33,6 +35,47 @@ router.get('/', asyncHandler(async (req, res) => {
   });
 
   return sendSuccess(res, orders);
+}));
+
+/**
+ * GET /api/orders/export
+ */
+router.get('/export', asyncHandler(async (req, res) => {
+  const companyId = req.companyId!;
+
+  const orders = await prisma.order.findMany({
+    where: { companyId },
+    include: {
+      customer: { select: { name: true, internalCode: true } },
+      submittedBy: { select: { firstName: true, lastName: true } },
+    } as any,
+    orderBy: { createdAt: 'desc' }
+  });
+
+  const exportData = (orders as any).map((o: any) => ({
+    Numero: o.number,
+    Fecha: o.createdAt.toISOString(),
+    Cliente: o.customer.name,
+    CodigoInterno: o.customer.internalCode,
+    Estado: o.status,
+    Total: o.total,
+    Moneda: o.currency,
+    SolicitadoPor: `${o.submittedBy?.firstName || ''} ${o.submittedBy?.lastName || ''}`,
+  }));
+
+  // Audit export
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'ORDERS_EXPORTED',
+    resource: 'Order',
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { count: exportData.length }
+  });
+
+  return exportToCsv(res, `pedidos_nexob2b_${new Date().toISOString().split('T')[0]}`, exportData);
 }));
 
 /**

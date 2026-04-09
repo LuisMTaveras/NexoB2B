@@ -16,6 +16,15 @@
             class="pl-11 pr-4 py-3 bg-white/70 backdrop-blur-md border border-[var(--color-brand-200)] rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-[var(--color-accent-100)] focus:border-[var(--color-accent-400)] transition-all w-full md:w-80 shadow-sm"
           />
         </div>
+        <button 
+          @click="exportOrders"
+          class="btn bg-white hover:bg-[var(--color-accent-50)] text-[var(--color-brand-700)] border-[var(--color-brand-200)] px-5 h-12 rounded-2xl shadow-sm flex items-center gap-2 group transition-all hover:border-[var(--color-accent-300)]"
+          :disabled="exporting"
+        >
+          <Icon icon="mdi:file-export-outline" class="w-5 h-5 group-hover:scale-110 transition-transform" />
+          <span v-if="!exporting">Exportar CSV</span>
+          <span v-else>Generando...</span>
+        </button>
       </div>
     </div>
 
@@ -169,6 +178,7 @@ import api from '@/services/api'
 
 const orders = ref<any[]>([])
 const loading = ref(true)
+const exporting = ref(false)
 const search = ref('')
 const selectedOrder = ref<any>(null)
 
@@ -204,6 +214,25 @@ async function fetchOrders() {
     console.error('Error fetching orders:', err)
   } finally {
     loading.value = false
+  }
+}
+
+async function exportOrders() {
+  exporting.value = true
+  try {
+    // We point directly to the endpoint that returns the CSV file
+    const response = await api.get('/orders/export', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `pedidos_b2b_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err) {
+    console.error('Error exporting orders:', err)
+  } finally {
+    exporting.value = false
   }
 }
 

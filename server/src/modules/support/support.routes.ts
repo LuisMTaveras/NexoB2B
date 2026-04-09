@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { sendSuccess, sendNotFound, sendCreated, sendError } from '../../utils/apiResponse';
 import { authenticate } from '../../middleware/auth';
+import { logAction } from '../../lib/audit';
 
 const router = Router();
 router.use(authenticate);
@@ -172,10 +173,31 @@ router.patch('/tickets/:id/status', asyncHandler(async (req, res) => {
   if (req.user!.type !== 'internal') return sendError(res, 'Solo el staff puede cambiar el estado', 403);
 
   const { status } = req.body;
+  const original = await (prisma as any).ticket.findUnique({ where: { id: req.params.id } });
+  
   const updated = await (prisma as any).ticket.update({
     where: { id: req.params.id },
-
     data: { status }
+  });
+
+
+  // Audit ticket status change
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'TICKET_STATUS_UPDATED',
+    resource: 'Ticket',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { 
+      oldStatus: original?.status,
+      newStatus: status,
+      ticketNumber: original?.id ? original.id.slice(-6).toUpperCase() : 'N/A',
+      oldData: original,
+      newData: updated
+    }
   });
 
   return sendSuccess(res, updated, 'Estado del ticket actualizado');
@@ -186,9 +208,36 @@ router.patch('/tickets/:id/assign', asyncHandler(async (req, res) => {
   if (req.user!.type !== 'internal') return sendError(res, 'Solo el staff puede asignar tickets', 403);
 
   const { assignedToId } = req.body;
+  const original = await (prisma as any).ticket.findUnique({ where: { id: req.params.id } });
+  
+  // Get agent name for better logging
+  const agent = assignedToId ? await (prisma as any).internalUser.findUnique({ 
+    where: { id: assignedToId },
+    select: { firstName: true, lastName: true }
+  }) : null;
+
   const updated = await (prisma as any).ticket.update({
     where: { id: req.params.id },
     data: { assignedToId }
+  });
+
+  // Audit ticket assignment
+  await logAction({
+    companyId: req.companyId!,
+    userId: req.user!.userId,
+    userEmail: req.user!.email,
+    action: 'TICKET_ASSIGNED',
+    resource: 'Ticket',
+    resourceId: req.params.id,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    details: { 
+      assignedToId,
+      assignedToName: agent ? `${agent.firstName} ${agent.lastName}` : (assignedToId ? 'Desconocido' : 'Sin asignar'),
+      ticketNumber: original?.id ? original.id.slice(-6).toUpperCase() : 'N/A',
+      oldData: original,
+      newData: updated
+    }
   });
 
   return sendSuccess(res, updated, 'Ticket asignado correctamente');

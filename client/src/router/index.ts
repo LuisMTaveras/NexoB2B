@@ -37,6 +37,11 @@ const router = createRouter({
           component: () => import('@/modules/dashboard/views/DashboardView.vue'),
         },
         {
+          path: 'analytics',
+          name: 'sales-analytics',
+          component: () => import('@/modules/dashboard/views/SalesAnalyticsView.vue'),
+        },
+        {
           path: 'company',
           name: 'company',
           component: () => import('@/modules/company/views/CompanyView.vue'),
@@ -80,6 +85,11 @@ const router = createRouter({
           path: 'settings/email',
           name: 'email-settings',
           component: () => import('@/modules/settings/views/EmailSettingsView.vue'),
+        },
+        {
+          path: 'audit',
+          name: 'audit-logs',
+          component: () => import('@/modules/audit/views/AuditLogsView.vue'),
         },
       ],
     },

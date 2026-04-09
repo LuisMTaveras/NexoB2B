@@ -15,6 +15,6 @@ Este documento lista las funcionalidades y mejoras planificadas que aún no han 
 - [ ] **Chat en Vivo**: Integración de chat en tiempo real (directo) además del sistema de tickets.
 
 ## 📈 Administración y Control
-- [ ] **Logs de Auditoría**: Registro detallado de qué usuario Staff modificó configuraciones de integración o parámetros de la empresa.
+- [x] **Logs de Auditoría**: Registro enriquecido con snapshots y bitácoras de recursos (Implementado 🚀).
 - [ ] **Reportes en Excel/CSV**: Exportación masiva de datos de ventas y comportamiento de clientes para análisis externo.
 
