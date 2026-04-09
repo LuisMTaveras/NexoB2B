@@ -3,8 +3,8 @@
 Este documento lista las funcionalidades y mejoras planificadas que aún no han sido implementadas en la plataforma.
 
 ## 🚀 Prioridad Alta
-- [ ] **Pagos Online**: Integración de pasarela de pagos (Stripe, Azul, etc.) para liquidar facturas directamente desde el portal.
-- [ ] **Webhooks ERP**: Soporte para recibir eventos en tiempo real desde el ERP (Push) en lugar de depender exclusivamente del Polling.
+- [ ] **Pagos Online**: Integración de pasarela de pagos (Stripe, Azul, etc.) para liquidar facturas directamente desde el portal. (Esperar confirmación para iniciar)
+
 
 ## ⚙️ Backend e Integración
 - [ ] **Mapeos Avanzados**: Implementar lógica de transformación compleja (uso de scripts o expresiones) para campos de integración difíciles.
