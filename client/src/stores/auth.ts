@@ -87,8 +87,17 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     company.value = null
     localStorage.removeItem('nexob2b_token')
-    router.push('/login')
+    
+    // Force a clean redirect to login and clear any router state
+    if (router) {
+      router.push('/login').catch(() => {
+        window.location.href = '/login'
+      })
+    } else {
+      window.location.href = '/login'
+    }
   }
+
 
   async function updateProfile(payload: { firstName: string; lastName: string; email: string }) {
     loading.value = true

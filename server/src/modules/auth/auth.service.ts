@@ -125,13 +125,14 @@ export async function login(data: LoginDto) {
 
 export async function getMe(userId: string, type: 'internal' | 'customer') {
   if (type === 'internal') {
-    return prisma.internalUser.findUnique({
+    const user = await prisma.internalUser.findUnique({
       where: { id: userId },
       select: {
         id: true, firstName: true, lastName: true, email: true, role: true, status: true,
         company: { select: { id: true, name: true, slug: true, logo: true, status: true } },
       },
     });
+    return user ? { ...user, type: 'internal' } : null;
   }
 
   const customerUser = await prisma.customerUser.findUnique({
@@ -181,7 +182,7 @@ export async function updateProfile(userId: string, data: UpdateProfileDto) {
     },
   });
 
-  return updatedUser;
+  return { ...updatedUser, type: 'internal' };
 }
 
 export async function updatePassword(userId: string, data: UpdatePasswordDto) {

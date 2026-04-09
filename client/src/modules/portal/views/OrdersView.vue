@@ -99,7 +99,15 @@
                 </div>
 
                 <!-- Actions -->
-                <div class="mt-6 flex justify-end">
+                <div class="mt-6 flex justify-end gap-3">
+                   <RouterLink 
+                     :to="`/portal/support?orderId=${order.number}`"
+                     class="px-4 py-2 border border-slate-200 bg-white text-[var(--color-brand-600)] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm flex items-center gap-2"
+                   >
+                     <Icon icon="mdi:ticket-outline" class="w-4 h-4" />
+                     Reportar Problema
+                   </RouterLink>
+
                    <button 
                      @click.stop="reorderOrder(order)"
                      :disabled="reordering === order.id"

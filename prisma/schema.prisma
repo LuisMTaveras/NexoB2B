@@ -83,8 +83,18 @@ enum OrderStatus {
 enum TicketStatus {
   OPEN
   IN_PROGRESS
+  WAITING_ON_CUSTOMER
+  ESCALATED
   RESOLVED
   CLOSED
+}
+
+enum TicketCategory {
+  ORDER_ISSUE
+  BILLING
+  TECHNICAL
+  ACCOUNT
+  OTHER
 }
 
 enum TicketPriority {
@@ -94,23 +104,22 @@ enum TicketPriority {
   URGENT
 }
 
-
 // ─── Company (Tenant) ────────────────────────────────────────────
 
 model Company {
-  id        String        @id @default(cuid())
-  name      String
-  slug      String        @unique
-  taxId     String?
-  phone     String?
-  website   String?
-  address   String?
-  logo      String?
+  id             String        @id @default(cuid())
+  name           String
+  slug           String        @unique
+  taxId          String?
+  phone          String?
+  website        String?
+  address        String?
+  logo           String?
   corporateEmail String?
-  socialLinks    Json?         // { linkedin, instagram, facebook, twitter/x }
-  status    CompanyStatus @default(CONFIGURING)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  socialLinks    Json? // { linkedin, instagram, facebook, twitter/x }
+  status         CompanyStatus @default(CONFIGURING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   branding      CompanyBranding?
   internalUsers InternalUser[]
@@ -122,7 +131,6 @@ model Company {
   orders        Order[]
   tickets       Ticket[]
   auditLogs     AuditLog[]
-
 }
 
 model CompanyBranding {
@@ -154,29 +162,30 @@ model InternalUser {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  auditLogs AuditLog[]
-  emailConfig EmailConfig?
+  company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  auditLogs       AuditLog[]
+  emailConfig     EmailConfig?
+  assignedTickets Ticket[]     @relation("AssignedTo")
 
   @@index([companyId])
   @@index([email])
 }
 
 model EmailConfig {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  provider     String   @default("CUSTOM") // GMAIL, OUTLOOK, CUSTOM
-  host         String?
-  port         Int?
-  smtpUser     String
-  password     String   // encrypted
-  imapHost     String?
-  imapPort     Int?
-  fromAddress  String
-  fromName     String?
-  useTLS       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  provider    String   @default("CUSTOM") // GMAIL, OUTLOOK, CUSTOM
+  host        String?
+  port        Int?
+  smtpUser    String
+  password    String // encrypted
+  imapHost    String?
+  imapPort    Int?
+  fromAddress String
+  fromName    String?
+  useTLS      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   user InternalUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -184,19 +193,19 @@ model EmailConfig {
 // ─── Integrations ────────────────────────────────────────────────
 
 model Integration {
-  id            String                @id @default(cuid())
-  companyId     String
-  name          String
-  description   String?
-  authMethod    IntegrationAuthMethod
-  baseUrl       String
-  credentials   Json                  // encrypted in prod
-  headers       Json?                 // extra fixed headers
-  testEndpoint  String?               // endpoint to test connectivity
-  isActive      Boolean               @default(false)
-  lastSyncAt    DateTime?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  id           String                @id @default(cuid())
+  companyId    String
+  name         String
+  description  String?
+  authMethod   IntegrationAuthMethod
+  baseUrl      String
+  credentials  Json // encrypted in prod
+  headers      Json? // extra fixed headers
+  testEndpoint String? // endpoint to test connectivity
+  isActive     Boolean               @default(false)
+  lastSyncAt   DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
 
   company  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   mappings IntegrationMapping[]
@@ -210,24 +219,24 @@ model IntegrationMapping {
   integrationId    String
   resource         SyncResource
   externalEndpoint String
-  fieldMappings    Json         // { internalField: externalField | "=CONSTANT" }
-  paginationConfig Json?        // PaginationConfig: { type, pageParam, pageSizeParam, pageSize, dataPath, totalPath }
-  queryParams      Json?        // extra query params
+  fieldMappings    Json // { internalField: externalField | "=CONSTANT" }
+  paginationConfig Json? // PaginationConfig: { type, pageParam, pageSizeParam, pageSize, dataPath, totalPath }
+  queryParams      Json? // extra query params
   isActive         Boolean      @default(true)
   // ─── Scheduling ──────────────────────────────────────
   isScheduled      Boolean      @default(false)
-  syncCron         String?      // cron expression e.g. "0 2 * * *" = daily at 2 AM
-  syncInterval     String?      // human-readable interval e.g. "every 6 hours"
-  nextRunAt        DateTime?    // when the next run will fire
-  lastScheduledAt  DateTime?    // when it was last triggered by scheduler
+  syncCron         String? // cron expression e.g. "0 2 * * *" = daily at 2 AM
+  syncInterval     String? // human-readable interval e.g. "every 6 hours"
+  nextRunAt        DateTime? // when the next run will fire
+  lastScheduledAt  DateTime? // when it was last triggered by scheduler
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
+  @@unique([integrationId, resource])
   @@index([integrationId])
   @@index([isScheduled, nextRunAt]) // for efficient scheduler queries
-  @@unique([integrationId, resource])
 }
 
 model IntegrationSyncJob {
@@ -241,10 +250,10 @@ model IntegrationSyncJob {
   recordsOk     Int          @default(0)
   recordsFailed Int          @default(0)
   errorSummary  String?
-  triggeredBy   String?      // user id or "scheduler"
+  triggeredBy   String? // user id or "scheduler"
   createdAt     DateTime     @default(now())
 
-  integration Integration        @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  integration Integration          @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   logs        IntegrationSyncLog[]
 
   @@index([integrationId])
@@ -253,7 +262,7 @@ model IntegrationSyncJob {
 model IntegrationSyncLog {
   id        String   @id @default(cuid())
   jobId     String
-  level     String   // info | warn | error
+  level     String // info | warn | error
   message   String
   details   Json?
   createdAt DateTime @default(now())
@@ -268,8 +277,8 @@ model IntegrationSyncLog {
 model Customer {
   id            String         @id @default(cuid())
   companyId     String
-  internalCode  String?        // NexoB2B unique code: CLT-YYYYMM-XXXXXXXX
-  externalId    String?        // ID in ERP
+  internalCode  String? // NexoB2B unique code: CLT-YYYYMM-XXXXXXXX
+  externalId    String? // ID in ERP
   name          String
   taxId         String?
   email         String?
@@ -290,7 +299,6 @@ model Customer {
   orders          Order[]
   tickets         Ticket[]
 
-
   @@unique([companyId, externalId])
   @@unique([companyId, internalCode])
   @@index([companyId])
@@ -310,22 +318,21 @@ model CustomerUser {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  orders   Order[]  @relation("SubmittedBy")
-  tickets  Ticket[] @relation("RaisedBy")
+  customer Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orders   Order[]             @relation("SubmittedBy")
+  tickets  Ticket[]            @relation("RaisedBy")
   tokens   VerificationToken[]
-
 
   @@index([customerId])
 }
 
 model VerificationToken {
-  id         String   @id @default(cuid())
-  userId     String
-  token      String   @unique
-  type       String   // INVITATION, PASSWORD_RESET
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  type      String // INVITATION, PASSWORD_RESET
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   user CustomerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -335,9 +342,9 @@ model VerificationToken {
 // ─── Products & Pricing ──────────────────────────────────────────
 
 model Product {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   companyId    String
-  internalCode String?  // NexoB2B unique code: PRD-YYYYMM-XXXXXXXX
+  internalCode String? // NexoB2B unique code: PRD-YYYYMM-XXXXXXXX
   externalId   String?
   sku          String
   name         String
@@ -346,12 +353,12 @@ model Product {
   brand        String?
   unit         String?
   imageUrl     String?
-  stock        Decimal  @default(0) @db.Decimal(18, 4)
-  isVisible    Boolean  @default(true)
-  isActive     Boolean  @default(true)
+  stock        Decimal   @default(0) @db.Decimal(18, 4)
+  isVisible    Boolean   @default(true)
+  isActive     Boolean   @default(true)
   syncedAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   company        Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
   priceSnapshots ProductPriceSnapshot[]
@@ -365,7 +372,7 @@ model Product {
 model ProductPriceSnapshot {
   id          String   @id @default(cuid())
   productId   String
-  priceListId String   // e.g. "1", "2", "LISTA_A"
+  priceListId String // e.g. "1", "2", "LISTA_A"
   price       Decimal  @db.Decimal(18, 4)
   currency    String   @default("DOP")
   syncedAt    DateTime @default(now())
@@ -380,7 +387,7 @@ model CustomerPriceAssignment {
   id          String   @id @default(cuid())
   customerId  String   @unique
   priceListId String
-  source      String   // "erp" | "manual"
+  source      String // "erp" | "manual"
   syncedAt    DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -393,13 +400,13 @@ model Invoice {
   id           String        @id @default(cuid())
   companyId    String
   customerId   String
-  internalCode String?       // NexoB2B unique code: FAC-YYYYMM-XXXXXXXX
+  internalCode String? // NexoB2B unique code: FAC-YYYYMM-XXXXXXXX
   externalId   String?
   number       String
   date         DateTime
   dueDate      DateTime?
   subtotal     Decimal       @db.Decimal(18, 2)
-  tax          Decimal       @db.Decimal(18, 2) @default(0)
+  tax          Decimal       @default(0) @db.Decimal(18, 2)
   total        Decimal       @db.Decimal(18, 2)
   currency     String        @default("DOP")
   status       InvoiceStatus @default(PENDING)
@@ -419,18 +426,18 @@ model Invoice {
 // ─── Accounts Receivable ─────────────────────────────────────────
 
 model AccountReceivable {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   companyId   String
   customerId  String
   externalId  String?
   documentRef String?
-  amount      Decimal  @db.Decimal(18, 2)
-  balance     Decimal  @db.Decimal(18, 2)
-  currency    String   @default("DOP")
+  amount      Decimal   @db.Decimal(18, 2)
+  balance     Decimal   @db.Decimal(18, 2)
+  currency    String    @default("DOP")
   dueDate     DateTime?
   syncedAt    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id])
@@ -443,32 +450,31 @@ model AccountReceivable {
 // ─── Orders ──────────────────────────────────────────────────────
 
 model Order {
-  id           String      @id @default(cuid())
-  companyId    String
-  customerId   String
-  internalCode String?     // NexoB2B unique code: ORD-YYYYMM-XXXXXXXX
-  externalId   String?
-  number       String
-  date         DateTime
-  status       OrderStatus @default(OPEN)
-  total        Decimal     @db.Decimal(18, 2)
-  currency     String      @default("DOP")
-  notes        String?
-  syncedAt     DateTime?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id            String      @id @default(cuid())
+  companyId     String
+  customerId    String
+  internalCode  String? // NexoB2B unique code: ORD-YYYYMM-XXXXXXXX
+  externalId    String?
+  number        String
+  date          DateTime
+  status        OrderStatus @default(OPEN)
+  total         Decimal     @db.Decimal(18, 2)
+  currency      String      @default("DOP")
+  notes         String?
+  syncedAt      DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   submittedById String?
 
-  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer   Customer    @relation(fields: [customerId], references: [id])
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer    Customer      @relation(fields: [customerId], references: [id])
   submittedBy CustomerUser? @relation("SubmittedBy", fields: [submittedById], references: [id])
-  items      OrderItem[]
+  items       OrderItem[]
 
   @@unique([companyId, externalId])
   @@index([companyId])
   @@index([customerId])
 }
-
 
 model OrderItem {
   id        String  @id @default(cuid())
@@ -493,8 +499,8 @@ model AuditLog {
   companyId  String
   userId     String?
   userEmail  String?
-  action     String   // e.g. "USER_LOGIN", "CUSTOMER_INVITED"
-  resource   String?  // e.g. "Customer", "Integration"
+  action     String // e.g. "USER_LOGIN", "CUSTOMER_INVITED"
+  resource   String? // e.g. "Customer", "Integration"
   resourceId String?
   details    Json?
   ip         String?
@@ -512,20 +518,25 @@ model AuditLog {
 // ─── Support Tickets ─────────────────────────────────────────────
 
 model Ticket {
-  id           String         @id @default(cuid())
-  companyId    String
-  customerId   String
-  raisedById   String?
-  subject      String
-  status       TicketStatus   @default(OPEN)
-  priority     TicketPriority @default(MEDIUM)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id               String         @id @default(cuid())
+  companyId        String
+  customerId       String
+  raisedById       String?
+  subject          String
+  status           TicketStatus   @default(OPEN)
+  priority         TicketPriority @default(MEDIUM)
+  assignedToId     String?
+  category         TicketCategory @default(OTHER)
+  relatedOrderId   String?
+  relatedInvoiceId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
-  company  Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  customer Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  raisedBy CustomerUser? @relation("RaisedBy", fields: [raisedById], references: [id])
-  messages TicketMessage[]
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer   Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  raisedBy   CustomerUser?   @relation("RaisedBy", fields: [raisedById], references: [id])
+  assignedTo InternalUser?   @relation("AssignedTo", fields: [assignedToId], references: [id])
+  messages   TicketMessage[]
 
   @@index([companyId])
   @@index([customerId])
@@ -533,16 +544,16 @@ model Ticket {
 }
 
 model TicketMessage {
-  id        String   @id @default(cuid())
-  ticketId  String
-  senderId  String?  // Can be InternalUser.id or CustomerUser.id
-  senderType String  // "INTERNAL" | "CUSTOMER"
+  id         String   @id @default(cuid())
+  ticketId   String
+  senderId   String? // Can be InternalUser.id or CustomerUser.id
+  senderType String // "INTERNAL" | "CUSTOMER"
   senderName String
-  body      String
-  createdAt DateTime @default(now())
+  body       String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
 }
-

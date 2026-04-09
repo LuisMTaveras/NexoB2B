@@ -15,6 +15,21 @@
   --color-brand-100: #f1f5f9;
   --color-brand-50:  #f8fafc;
 
+  /* Slate Aliases for compatibility */
+  --color-slate-950: #0a0f1c;
+  --color-slate-900: #0f172a;
+  --color-slate-800: #1e293b;
+  --color-slate-700: #334155;
+  --color-slate-600: #475569;
+  --color-slate-500: #64748b;
+  --color-slate-400: #94a3b8;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #f1f5f9;
+  --color-slate-50:  #f8fafc;
+
+
+
   /* Solid Royal Accent */
   --color-accent-600: #1e3a8a;
   --color-accent-500: #2563eb;
@@ -235,7 +250,9 @@
   .badge-warning { background: rgba(254, 243, 199, 0.8); color: #92400e; border-color: rgba(255,255,255,0.6); }
   .badge-danger  { background: rgba(254, 226, 226, 0.8); color: #991b1b; border-color: rgba(255,255,255,0.6); }
   .badge-info    { background: rgba(219, 234, 254, 0.8); color: #1e40af; border-color: rgba(255,255,255,0.6); }
+  .badge-indigo  { background: rgba(224, 231, 255, 0.8); color: #3730a3; border-color: rgba(255,255,255,0.6); }
   .badge-neutral { background: rgba(241, 245, 249, 0.8); color: var(--color-brand-700); border-color: rgba(255,255,255,0.6); }
+
 
   /* Table */
   .table-wrapper { 

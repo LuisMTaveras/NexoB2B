@@ -59,6 +59,16 @@
                  <h4 class="font-bold text-[var(--color-brand-900)] line-clamp-2 mb-2 group-hover:text-[var(--color-accent-600)] transition-colors">
                     {{ ticket.subject }}
                  </h4>
+
+                 <div>
+                    <span v-if="ticket.category && ticket.category !== 'OTHER'" class="text-[9px] text-slate-500 font-bold uppercase tracking-widest border border-slate-200 bg-slate-50 inline-block px-2 py-1 rounded-md mr-2 mt-1 shadow-sm">
+                       {{ ticket.category }}
+                    </span>
+                    <span v-if="ticket.relatedOrderId" class="text-[9px] text-indigo-600 font-bold uppercase tracking-widest border border-indigo-200 bg-indigo-50 inline-block px-2 py-1 rounded-md mt-1 shadow-sm">
+                       🔗 PEDIDO
+                    </span>
+                 </div>
+
                  
                  <div v-if="isInternal" class="mb-4">
                     <p class="text-[11px] font-black text-slate-400 uppercase tracking-tighter">Cliente</p>
@@ -67,10 +77,10 @@
 
                  <div class="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
                     <div class="flex items-center gap-2">
-                       <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">
-                          {{ ticket.raisedBy?.firstName[0] }}
+                       <div class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 uppercase">
+                          {{ ticket.raisedBy?.firstName?.[0] || '?' }}
                        </div>
-                       <span class="text-[11px] text-slate-500 font-medium">{{ ticket.raisedBy?.firstName }}</span>
+                       <span class="text-[11px] text-slate-500 font-medium">{{ ticket.raisedBy?.firstName || 'Usuario' }}</span>
                     </div>
                     <span class="text-[10px] text-slate-400 font-medium">{{ formatDate(ticket.updatedAt) }}</span>
                  </div>
@@ -95,18 +105,32 @@
                    <input v-model="newTicket.subject" class="input" placeholder="Ej: Error en precio de SKU-123" />
                 </div>
                 <div>
-                   <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Prioridad</label>
-                   <select v-model="newTicket.priority" class="input">
-                      <option value="LOW">Baja</option>
-                      <option value="MEDIUM">Normal</option>
-                      <option value="HIGH">Alta</option>
-                      <option value="URGENT">Urgente</option>
-                   </select>
-                </div>
-                <div>
-                   <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Mensaje Detallado</label>
-                   <textarea v-model="newTicket.body" class="input min-h-[120px]" placeholder="Explica el problema..."></textarea>
-                </div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Prioridad</label>
+                    <select v-model="newTicket.priority" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all">
+                       <option value="LOW">Baja (Sin urgencia)</option>
+                       <option value="MEDIUM">Normal</option>
+                       <option value="HIGH">Alta (Afecta operaciones)</option>
+                       <option value="URGENT">Urgente (Bloqueo Total)</option>
+                    </select>
+                 </div>
+                 <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Categoría del Problema</label>
+                    <select v-model="newTicket.category" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all">
+                       <option value="ORDER_ISSUE">Problema con Pedido / Envío</option>
+                       <option value="BILLING">Facturación y Pagos</option>
+                       <option value="TECHNICAL">Fallo Técnico en Portal</option>
+                       <option value="ACCOUNT">Gestión de Cuenta</option>
+                       <option value="OTHER">Consulta General</option>
+                    </select>
+                 </div>
+                 <div v-if="newTicket.category === 'ORDER_ISSUE' || newTicket.category === 'BILLING'">
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">ID del Pedido o Factura Relacionada</label>
+                    <input v-model="newTicket.relatedOrderId" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm mb-1 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all" placeholder="Ej: ORD-20260409-1234" />
+                 </div>
+                 <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 ml-1">Mensaje Detallado</label>
+                    <textarea v-model="newTicket.body" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all min-h-[120px]" placeholder="Explica el problema..."></textarea>
+                 </div>
              </div>
              
              <div class="mt-8 flex gap-3">
@@ -151,14 +175,16 @@
           <div class="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar bg-slate-50/50">
              <div v-for="msg in selectedTicket.messages" :key="msg.id" :class="msg.senderType === 'INTERNAL' ? 'flex flex-row' : 'flex flex-row-reverse'" class="gap-4">
                 <div class="w-10 h-10 rounded-2xl shrink-0 shadow-sm border border-white flex items-center justify-center text-xs font-black" :class="msg.senderType === 'INTERNAL' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600'">
-                   {{ msg.senderName[0] }}
+                   {{ (msg.senderName || 'U')[0] }}
                 </div>
-                <div class="max-w-[70%] space-y-1">
-                   <div :class="msg.senderType === 'INTERNAL' ? 'bg-white border-slate-100 text-slate-800 rounded-tr-3xl rounded-br-3xl rounded-bl-3xl' : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tl-3xl rounded-bl-3xl rounded-br-3xl'" class="p-5 shadow-sm border">
-                      <p class="text-sm font-medium leading-relaxed">{{ msg.body }}</p>
+
+                <div class="max-w-[70%] space-y-1 relative mt-[6px]">
+                   <div :class="msg.senderType === 'INTERNAL' ? (msg.isInternal ? 'bg-orange-50 border-orange-200 text-orange-900 rounded-tr-2xl rounded-br-2xl rounded-bl-2xl border-dashed border-2' : 'bg-white border-slate-100 text-slate-800 rounded-tr-2xl rounded-br-2xl rounded-bl-2xl') : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tl-2xl rounded-bl-2xl rounded-br-2xl'" class="p-4 shadow-sm border relative">
+                      <div v-if="msg.isInternal" class="absolute -top-3 -right-2 bg-orange-100 text-orange-600 px-2 py-1 text-[8px] font-black uppercase tracking-widest rounded-full border border-orange-200 shadow-sm flex items-center gap-1 z-10"><Icon icon="mdi:lock-outline" /> NOTA PRIVADA</div>
+                      <p class="text-[13px] font-medium leading-relaxed">{{ msg.body }}</p>
                    </div>
                    <div class="flex items-center gap-2 px-1" :class="msg.senderType === 'INTERNAL' ? 'justify-start' : 'justify-end'">
-                      <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">{{ msg.senderName }}</span>
+                      <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">{{ msg.senderName || 'Usuario' }}</span>
                       <span class="text-[9px] text-slate-300">•</span>
                       <span class="text-[9px] font-medium text-slate-400">{{ formatDate(msg.createdAt) }}</span>
                    </div>
@@ -167,22 +193,27 @@
           </div>
 
           <!-- Quick Actions for Admin -->
-          <div v-if="isInternal" class="px-8 py-3 bg-white border-t border-slate-100 flex items-center gap-4 shrink-0">
-             <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Cambiar Estado:</span>
-             <div class="flex gap-2">
-                <button 
-                  v-for="s in ['IN_PROGRESS', 'RESOLVED', 'CLOSED']" 
-                  :key="s"
-                  @click="updateStatus(s)"
-                  class="px-3 py-1.5 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors"
-                >
-                   {{ s }}
-                </button>
+          <div v-if="isInternal" class="px-8 py-3 bg-white border-t border-slate-100 flex items-center justify-between gap-4 shrink-0 shadow-sm z-10">
+             <div class="flex items-center gap-3">
+                 <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Estado:</span>
+                 <select :value="selectedTicket.status" @change="updateStatus(($event.target as any).value)" class="text-[11px] font-bold uppercase tracking-wider border border-slate-200 rounded-lg py-1.5 px-3 bg-slate-50 text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100">
+                   <option v-for="s in ['OPEN', 'IN_PROGRESS', 'WAITING_ON_CUSTOMER', 'ESCALATED', 'RESOLVED', 'CLOSED']" :key="s" :value="s">{{s.replace(/_/g, ' ')}}</option>
+                 </select>
+             </div>
+             <div>
+                 <button v-if="!selectedTicket.assignedTo" @click="assignToMe" class="text-[10px] font-bold tracking-widest uppercase bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-lg border border-indigo-100 flex items-center gap-2 transition-colors"><Icon icon="mdi:account-arrow-left-outline" class="w-4 h-4"/> Tomar Ticket</button>
+                 <div v-else class="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-2 border border-slate-200 bg-slate-50 px-3 py-1.5 rounded-lg">
+                    <Icon icon="mdi:account-check" class="text-green-500 w-4 h-4" /> Asignado a {{selectedTicket.assignedTo.firstName}}
+                 </div>
              </div>
           </div>
 
           <!-- Input Area -->
           <div class="p-8 bg-white border-t border-slate-100 shrink-0">
+             <div v-if="isInternal" class="mb-4 flex items-center gap-2">
+                <input type="checkbox" id="isInternalNote" v-model="isInternalReply" class="w-4 h-4 text-orange-500 rounded border-slate-300 focus:ring-orange-500 cursor-pointer">
+                <label for="isInternalNote" class="text-xs font-bold text-orange-600 flex items-center gap-1.5 cursor-pointer uppercase tracking-widest"><Icon icon="mdi:lock" /> Enviar como Nota Interna Privada</label>
+             </div>
              <div class="relative flex items-center gap-4">
                 <textarea 
                   v-model="replyBody"
@@ -208,10 +239,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 
 const auth = useAuthStore()
+const route = useRoute()
 const isInternal = computed(() => auth.user?.type === 'internal')
 
 const tickets = ref<any[]>([])
@@ -222,12 +255,15 @@ const showCreateModal = ref(false)
 const newTicket = ref({
    subject: '',
    body: '',
-   priority: 'MEDIUM'
+   priority: 'MEDIUM',
+   category: 'OTHER',
+   relatedOrderId: ''
 })
 const creating = ref(false)
 
 const replyBody = ref('')
 const replying = ref(false)
+const isInternalReply = ref(false)
 
 async function fetchTickets() {
   loading.value = true
@@ -256,7 +292,7 @@ async function createTicket() {
    try {
       await api.post('/support/tickets', newTicket.value)
       showCreateModal.value = false
-      newTicket.value = { subject: '', body: '', priority: 'MEDIUM' }
+      newTicket.value = { subject: '', body: '', priority: 'MEDIUM', category: 'OTHER', relatedOrderId: '' }
       fetchTickets()
    } catch (err) {
       console.error('Error creating ticket:', err)
@@ -269,11 +305,14 @@ async function sendReply() {
    if (!replyBody.value.trim() || !selectedTicket.value) return
    replying.value = true
    try {
-      const res = await api.post(`/support/tickets/${selectedTicket.value.id}/messages`, {
-         body: replyBody.value
-      })
+      const payload: any = { body: replyBody.value }
+      if (isInternal.value) {
+         payload.isInternal = isInternalReply.value
+      }
+      const res = await api.post(`/support/tickets/${selectedTicket.value.id}/messages`, payload)
       selectedTicket.value.messages.push(res.data.data)
       replyBody.value = ''
+      if (isInternal.value) isInternalReply.value = false
       // Scroll handling would happen here
    } catch (err) {
       console.error('Error sending reply:', err)
@@ -293,6 +332,17 @@ async function updateStatus(status: string) {
    }
 }
 
+async function assignToMe() {
+   if (!selectedTicket.value) return
+   try {
+      await api.patch(`/support/tickets/${selectedTicket.value.id}/assign`, { assignedToId: auth.user!.id })
+      selectedTicket.value.assignedTo = { firstName: auth.user!.firstName, lastName: auth.user!.lastName }
+      fetchTickets() // refresh lists in background
+   } catch (err) {
+      console.error('Error assigning ticket:', err)
+   }
+}
+
 function formatDate(date: string) {
   if (!date) return ''
   return new Date(date).toLocaleDateString('es-DO', { 
@@ -302,11 +352,13 @@ function formatDate(date: string) {
 
 function getStatusClass(status: string) {
   switch (status) {
-    case 'OPEN':        return 'bg-blue-50 text-blue-600 border border-blue-100'
-    case 'IN_PROGRESS': return 'bg-amber-50 text-amber-600 border border-amber-100'
-    case 'RESOLVED':    return 'bg-green-50 text-green-600 border border-green-100'
-    case 'CLOSED':      return 'bg-slate-100 text-slate-500 border border-slate-200'
-    default:            return 'bg-slate-100 text-slate-600'
+    case 'OPEN':                return 'bg-blue-50 text-blue-600 border border-blue-100'
+    case 'IN_PROGRESS':         return 'bg-amber-50 text-amber-600 border border-amber-100'
+    case 'WAITING_ON_CUSTOMER': return 'bg-purple-50 text-purple-600 border border-purple-100'
+    case 'ESCALATED':           return 'bg-red-50 text-red-600 border border-red-100'
+    case 'RESOLVED':            return 'bg-green-50 text-green-600 border border-green-100'
+    case 'CLOSED':              return 'bg-slate-100 text-slate-500 border border-slate-200'
+    default:                    return 'bg-slate-100 text-slate-600'
   }
 }
 
@@ -320,7 +372,14 @@ function getPriorityClass(p: string) {
   }
 }
 
-onMounted(fetchTickets)
+onMounted(() => {
+  fetchTickets()
+  if (route.query.orderId) {
+     newTicket.value.relatedOrderId = route.query.orderId as string
+     newTicket.value.category = 'ORDER_ISSUE'
+     showCreateModal.value = true
+  }
+})
 </script>
 
 <style scoped>
@@ -334,7 +393,6 @@ onMounted(fetchTickets)
   background: #e2e8f0;
   border-radius: 10px;
 }
-.input {
-   @apply w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 transition-all;
-}
+
+
 </style>

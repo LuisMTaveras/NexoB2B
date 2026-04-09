@@ -190,8 +190,9 @@ const filteredOrders = computed(() => {
   return orders.value.filter(o => 
     o.number.toLowerCase().includes(q) || 
     o.customer?.name.toLowerCase().includes(q) ||
-    o.submittedBy?.firstName.toLowerCase().includes(q)
+    o.submittedBy?.firstName?.toLowerCase().includes(q)
   )
+
 })
 
 async function fetchOrders() {

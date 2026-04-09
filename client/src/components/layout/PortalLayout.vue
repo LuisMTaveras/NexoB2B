@@ -75,10 +75,12 @@
                     <p class="text-[11px] font-medium text-[var(--color-brand-500)] truncate">{{ auth.user?.email }}</p>
                   </div>
                   <div class="py-2 px-2">
-                    <button @click="auth.logout()" class="w-full text-left px-4 py-2.5 rounded-xl text-[13px] text-red-600 hover:bg-red-50 flex items-center gap-3 font-semibold transition-colors group">
+                    <button @click.stop.prevent="handleLogout" class="w-full text-left px-4 py-2.5 rounded-xl text-[13px] text-red-600 hover:bg-red-50 flex items-center gap-3 font-semibold transition-colors group">
+
                       <Icon icon="mdi:logout" class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                       Cerrar Sesión Segura
                     </button>
+
                   </div>
                 </div>
               </Transition>
@@ -139,6 +141,12 @@ const auth = useAuthStore()
 const route = useRoute()
 const userMenuOpen = ref(false)
 const mobileMenuOpen = ref(false)
+
+function handleLogout() {
+  userMenuOpen.value = false
+  auth.logout()
+}
+
 
 const navItems = computed(() => {
   const items = [
