@@ -215,8 +215,11 @@ router.post('/orders', asyncHandler(async (req, res) => {
     };
   });
 
-  // Determinar status basado en rol y configuración
-  const needsApproval = customerUser.requiresApproval;
+  // Determinar status basado en rol y configuración:
+  // - Los Buyers SIEMPRE requieren aprobación.
+  // - Los Admins SOLO si tienen el flag requiresApproval (control de gastos).
+  const needsApproval =
+    customerUser.role === 'BUYER' || customerUser.requiresApproval;
   const orderStatus = needsApproval ? 'PENDING_APPROVAL' : 'OPEN';
 
   // Crear id consecutivo interno básico temporal
@@ -277,7 +280,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
 router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
-    select: { customerId: true, requiresApproval: true }
+    select: { customerId: true, role: true, requiresApproval: true }
   });
 
   if (!customerUser) return sendNotFound(res);
@@ -301,7 +304,7 @@ router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
       submittedById: req.user!.userId,
       number: numberStr,
       date: new Date(),
-      status: customerUser.requiresApproval ? 'PENDING_APPROVAL' : 'OPEN',
+      status: (customerUser.role === 'BUYER' || customerUser.requiresApproval) ? 'PENDING_APPROVAL' : 'OPEN',
       total: existingOrder.total,
       currency: existingOrder.currency,
       notes: `Re-pedido del anterior ${existingOrder.number}`,

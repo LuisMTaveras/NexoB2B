@@ -140,7 +140,7 @@
                   :key="role"
                   class="p-4 rounded-2xl border-2 text-left transition-all"
                   :class="form.role === role ? 'border-indigo-600 bg-indigo-50 text-indigo-900' : 'border-slate-100 hover:border-slate-300'"
-                  @click="form.role = role"
+                  @click="form.role = role; form.requiresApproval = (role === 'BUYER')"
                 >
                   <Icon :icon="role === 'ADMIN' ? 'mdi:shield-account' : 'mdi:cart-outline'" class="w-5 h-5 mb-2" />
                   <p class="font-bold text-sm">{{ role === 'ADMIN' ? 'Administrador' : 'Comprador' }}</p>
@@ -149,20 +149,30 @@
               </div>
             </div>
 
-            <div class="bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-100">
+            <div v-if="form.role === 'ADMIN'" class="bg-indigo-50 p-4 rounded-2xl flex items-center justify-between border border-indigo-100 animate-in fade-in zoom-in-95 duration-300">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500">
+                <div class="w-10 h-10 rounded-xl bg-white border border-indigo-200 flex items-center justify-center text-indigo-500">
                   <Icon icon="mdi:shield-check-outline" class="w-5 h-5" />
                 </div>
                 <div>
-                  <p class="text-xs font-black text-slate-700 tracking-tight">Requiere aprobación</p>
-                  <p class="text-[10px] text-slate-400 font-medium">Sus pedidos quedarán pendientes hasta ser autorizados.</p>
+                  <p class="text-xs font-black text-indigo-700 tracking-tight">Autorización Administrativa</p>
+                  <p class="text-[10px] text-indigo-400 font-medium">Sus pedidos requerirán aprobación de otro Admin.</p>
                 </div>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" v-model="form.requiresApproval" class="sr-only peer">
                 <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
               </label>
+            </div>
+
+            <div v-else class="bg-amber-50 p-4 rounded-2xl flex items-center gap-3 border border-amber-100 animate-in fade-in slide-in-from-left-4 duration-300">
+              <div class="w-10 h-10 rounded-xl bg-white border border-amber-200 flex items-center justify-center text-amber-500 shadow-sm">
+                <Icon icon="mdi:lock-alert-outline" class="w-5 h-5" />
+              </div>
+              <div>
+                <p class="text-xs font-black text-amber-700 tracking-tight uppercase tracking-widest">Aprobación Requerida</p>
+                <p class="text-[10px] text-amber-600 font-medium">Los Compradores siempre necesitan autorización de un administrador.</p>
+              </div>
             </div>
 
             <div class="flex items-center justify-between pt-6 border-t border-slate-50">
