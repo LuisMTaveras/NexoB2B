@@ -142,6 +142,15 @@
                    </RouterLink>
 
                    <button 
+                     @click.stop="downloadProforma(order)"
+                     :disabled="downloading === order.id"
+                     class="px-4 py-2 border border-blue-200 bg-white text-blue-600 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-50 transition-all shadow-sm flex items-center gap-2"
+                   >
+                     <Icon :icon="downloading === order.id ? 'mdi:loading' : 'mdi:file-pdf-outline'" :class="{'animate-spin': downloading === order.id}" class="w-4 h-4" />
+                     {{ downloading === order.id ? 'Generando...' : 'Descargar Proforma' }}
+                   </button>
+
+                   <button 
                      @click.stop="reorderOrder(order)"
                      :disabled="reordering === order.id"
                      class="px-4 py-2 bg-[var(--color-accent-600)] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
@@ -181,6 +190,22 @@
                    {{ rejecting ? 'Procesando...' : 'Confirmar Rechazo' }}
                 </button>
              </div>
+          </div>
+       </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div v-if="showSuccessModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+       <div class="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300">
+          <div class="p-8 text-center">
+             <div class="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-100">
+                <Icon icon="mdi:check-circle" class="w-12 h-12 text-emerald-500 animate-in zoom-in-50 duration-500" />
+             </div>
+             <h3 class="text-2xl font-black text-slate-900 tracking-tight mb-2">{{ successTitle }}</h3>
+             <p class="text-sm font-medium text-slate-500 leading-relaxed mb-8">{{ successMessage }}</p>
+             <button @click="showSuccessModal = false" class="w-full py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">
+                Entendido
+             </button>
           </div>
        </div>
     </div>
@@ -226,8 +251,12 @@ const loading = ref(true)
 const expandedOrder = ref<string | null>(null)
 const reordering = ref<string | null>(null)
 const approving = ref<string | null>(null)
+const downloading = ref<string | null>(null)
 const rejecting = ref(false)
 const showRejectModal = ref(false)
+const showSuccessModal = ref(false)
+const successTitle = ref('')
+const successMessage = ref('')
 const rejectTarget = ref<Order | null>(null)
 const rejectReason = ref('')
 
@@ -251,12 +280,35 @@ const approveOrder = async (order: Order) => {
   approving.value = order.id
   try {
     await api.patch(`/portal/orders/${order.id}/approve`)
+    successTitle.value = '¡Pedido Aprobado!'
+    successMessage.value = `El pedido ${order.number} ha sido autorizado exitosamente y pasará a revisión logística.`
+    showSuccessModal.value = true
     await fetchOrders()
   } catch (err: unknown) {
     const apiError = err as { response?: { data?: { error?: string } } };
     alert(apiError.response?.data?.error || 'No se pudo aprobar el pedido.')
   } finally {
     approving.value = null
+  }
+}
+
+async function downloadProforma(order: Order) {
+  if (downloading.value) return
+  downloading.value = order.id
+  try {
+    const response = await api.get(`/portal/orders/${order.id}/proforma`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `PROFORMA-${order.number}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err) {
+    console.error('Download error:', err)
+    alert('No se pudo generar la proforma.')
+  } finally {
+    downloading.value = null
   }
 }
 
@@ -272,6 +324,9 @@ const confirmReject = async () => {
   try {
     await api.patch(`/portal/orders/${rejectTarget.value.id}/reject`, { reason: rejectReason.value })
     showRejectModal.value = false
+    successTitle.value = 'Pedido Rechazado'
+    successMessage.value = 'El pedido ha sido rechazado correctamente y el comprador será notificado.'
+    showSuccessModal.value = true
     await fetchOrders()
   } catch (err: unknown) {
     const apiError = err as { response?: { data?: { error?: string } } };
@@ -286,7 +341,9 @@ const reorderOrder = async (order: Order) => {
   reordering.value = order.id
   try {
     await api.post(`/portal/orders/${order.id}/reorder`)
-    alert('Repedido creado con éxito. Revisa el inicio de la lista.')
+    successTitle.value = '¡Repedido Exitoso!'
+    successMessage.value = 'El pedido se ha duplicado correctamente. Ya puedes verlo al inicio de tu lista de pedidos.'
+    showSuccessModal.value = true
     await fetchOrders()
   } catch (err) {
     console.error('Error reordering:', err)

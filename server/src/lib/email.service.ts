@@ -53,6 +53,35 @@ export class EmailService {
   }
 
   /**
+   * Helper to get a transporter for a company by finding the first available EmailConfig.
+   */
+  static async getCompanyTransporter(companyId: string) {
+    const config = await prisma.emailConfig.findFirst({
+      where: { user: { companyId } },
+    });
+
+    if (!config) return null;
+
+    const decryptedPassword = decrypt(config.password);
+
+    return {
+      transporter: nodemailer.createTransport({
+        host: config.host || undefined,
+        port: config.port || 587,
+        secure: config.port === 465,
+        auth: {
+          user: config.smtpUser,
+          pass: decryptedPassword,
+        },
+      }),
+      from: {
+        name: config.fromName || 'NexoB2B',
+        address: config.fromAddress,
+      }
+    };
+  }
+
+  /**
    * Generates the Sober Corporate template for Customer Invitation.
    */
   static getInvitationTemplate(data: {
@@ -246,7 +275,44 @@ export class EmailService {
   }
 
   /**
+   * Template for notifying Admins that an order needs approval.
+   */
+  static getApprovalRequiredTemplate(data: {
+    companyName: string;
+    orderNumber: string;
+    buyerName: string;
+    total: string;
+    currency: string;
+  }) {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"></head>
+      <body style="background-color: #f1f5f9; font-family: sans-serif; padding: 40px 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
+          <div style="background: #0f172a; padding: 40px; text-align: center; color: white;">
+            <div style="font-size: 40px; margin-bottom: 20px;">⚖️</div>
+            <h1 style="margin: 0; font-size: 20px;">Autorización Requerida</h1>
+          </div>
+          <div style="padding: 40px; line-height: 1.6; color: #334155;">
+            <p>Se ha registrado un nuevo pedido que requiere tu revisión y aprobación manual:</p>
+            <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin: 24px 0;">
+              <p style="margin: 0 0 8px 0;"><strong>Pedido:</strong> ${data.orderNumber}</p>
+              <p style="margin: 0 0 8px 0;"><strong>Solicitado por:</strong> ${data.buyerName}</p>
+              <p style="margin: 0;"><strong>Total:</strong> ${data.currency} ${data.total}</p>
+            </div>
+            <p>Por favor, accede al portal para aprobar o rechazar esta solicitud.</p>
+          </div>
+          <div style="background: #f8fafc; padding: 20px; text-align: center; color: #94a3b8; font-size: 11px;">
+            © ${new Date().getFullYear()} ${data.companyName} | Operado por NexoB2B
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
 
+  /**
    * Generates a notification template for Order Status updates.
    */
   static getOrderStatusTemplate(data: {
@@ -261,7 +327,8 @@ export class EmailService {
       CONFIRMED: '✅',
       SHIPPED: '🚚',
       DELIVERED: '📦',
-      CANCELLED: '❌'
+      CANCELLED: '❌',
+      REJECTED: '🚫'
     };
     const icon = statusIcons[data.newStatus] || '📋';
 
@@ -301,9 +368,6 @@ export class EmailService {
                         <td align="right" style="font-size: 16px; font-weight: 800; color: #0f172a;">${data.currency} ${data.total}</td>
                       </tr>
                     </table>
-                    <p style="font-size: 14px; color: #475569; margin: 30px 0 0 0;">
-                      Puedes consultar el detalle completo y dar seguimiento en tu portal de cliente.
-                    </p>
                   </td>
                 </tr>
                 <tr>
@@ -321,5 +385,3 @@ export class EmailService {
     `;
   }
 }
-
-

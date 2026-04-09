@@ -117,6 +117,43 @@
           </div>
       </div>
     </div>
+
+    <!-- Analytics Section (Admins Only) -->
+    <div v-if="portalData?.analytics" class="mt-10 animate-in slide-in-from-bottom-5 duration-700 delay-200">
+      <h3 class="font-black text-slate-800 uppercase text-xs tracking-widest mb-6 flex items-center gap-2">
+        <Icon icon="mdi:chart-line" class="text-indigo-600" />
+        Resumen de Consumo (Empresa)
+      </h3>
+      
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+        <!-- Monthly Chart -->
+        <div class="lg:col-span-2 card p-6 bg-white shadow-sm border-slate-100 min-h-[300px]">
+          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Tendencia de Gasto (6 meses)</p>
+          <div class="h-64">
+            <LineChart :data="chartData" :options="chartOptions" />
+          </div>
+        </div>
+
+        <!-- User Spend List -->
+        <div class="card p-6 bg-white shadow-sm border-slate-100">
+          <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Gasto por Usuario (Top 5)</p>
+          <div class="space-y-4">
+            <div v-for="user in portalData.analytics.spendByUser" :key="user.name" class="flex flex-col">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs font-bold text-slate-700 truncate mr-2">{{ user.name }}</span>
+                <span class="text-xs font-black text-indigo-600">{{ formatCurrency(user.total) }}</span>
+              </div>
+              <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div class="bg-indigo-500 h-full rounded-full transition-all duration-1000" :style="{ width: getUserPercentage(user.total) + '%' }"></div>
+              </div>
+            </div>
+            <div v-if="!portalData.analytics.spendByUser.length" class="text-center py-8 text-slate-400 italic text-xs">
+              No hay datos de consumo disponibles.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -127,13 +164,96 @@ import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 
 const auth = useAuthStore()
-const portalData = ref<any>(null)
+
+interface Invoice {
+  id: string;
+  number: string;
+  date: string;
+  total: number;
+  status: string;
+}
+
+interface AnalyticMonth {
+  label: string;
+  total: number;
+}
+
+interface AnalyticUser {
+  name: string;
+  total: number;
+}
+
+interface PortalData {
+  customerCode: string;
+  balance: number;
+  currency: string;
+  orderCount: number;
+  recentInvoices: Invoice[];
+  analytics?: {
+    spendByMonth: AnalyticMonth[];
+    spendByUser: AnalyticUser[];
+  };
+}
+
+const portalData = ref<PortalData | null>(null)
 const loading = ref(true)
+
+import { Line as LineChart } from 'vue-chartjs'
+import { Chart as ChartJS, Title, Tooltip, Legend, LineElement, CategoryScale, LinearScale, PointElement, Filler, type ChartData, type ChartOptions } from 'chart.js'
+
+ChartJS.register(Title, Tooltip, Legend, LineElement, CategoryScale, LinearScale, PointElement, Filler)
+
+const chartData = ref<ChartData<'line'>>({
+  labels: [],
+  datasets: [{
+    label: 'Consumo Mensual',
+    data: [],
+    borderColor: '#4f46e5',
+    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+    fill: true,
+    tension: 0.4,
+    pointRadius: 4,
+    pointBackgroundColor: '#fff',
+    pointBorderWidth: 2,
+  }]
+})
+
+const chartOptions: ChartOptions<'line'> = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false }
+  },
+  scales: {
+    y: { display: false },
+    x: { 
+      grid: { display: false },
+      ticks: { font: { size: 10, weight: 700 }, color: '#94a3b8' }
+    }
+  }
+}
+
+const getUserPercentage = (total: number) => {
+  const analytics = portalData.value?.analytics
+  const firstUser = analytics?.spendByUser?.[0]
+  if (!firstUser || firstUser.total <= 0) return 0
+  return (total / firstUser.total) * 100
+}
 
 const fetchData = async () => {
   try {
     const { data } = await api.get('/portal/dashboard')
     portalData.value = data.data
+
+    if (portalData.value && portalData.value.analytics) {
+      chartData.value = {
+        labels: portalData.value.analytics.spendByMonth.map((m) => m.label),
+        datasets: [{
+          ...chartData.value.datasets[0],
+          data: portalData.value.analytics.spendByMonth.map((m) => m.total)
+        }]
+      }
+    }
   } catch (error) {
     console.error('Error fetching portal data:', error)
   } finally {

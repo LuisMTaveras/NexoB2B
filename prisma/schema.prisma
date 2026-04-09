@@ -316,6 +316,7 @@ model CustomerUser {
   role         CustomerRole @default(BUYER)
   status       UserStatus   @default(INVITED)
   requiresApproval Boolean  @default(false)
+  orderLimit       Float?
   lastLoginAt  DateTime?
   lastActiveAt DateTime?
   createdAt    DateTime     @default(now())

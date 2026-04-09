@@ -149,30 +149,42 @@
               </div>
             </div>
 
-            <div v-if="form.role === 'ADMIN'" class="bg-indigo-50 p-4 rounded-2xl flex items-center justify-between border border-indigo-100 animate-in fade-in zoom-in-95 duration-300">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-white border border-indigo-200 flex items-center justify-center text-indigo-500">
-                  <Icon icon="mdi:shield-check-outline" class="w-5 h-5" />
-                </div>
-                <div>
-                  <p class="text-xs font-black text-indigo-700 tracking-tight">Autorización Administrativa</p>
-                  <p class="text-[10px] text-indigo-400 font-medium">Sus pedidos requerirán aprobación de otro Admin.</p>
-                </div>
-              </div>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" v-model="form.requiresApproval" class="sr-only peer">
-                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              </label>
-            </div>
+            <div class="space-y-4">
+               <div class="bg-indigo-50 p-4 rounded-2xl flex items-center justify-between border border-indigo-100 animate-in fade-in zoom-in-95 duration-300" v-if="form.role === 'ADMIN'">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-indigo-200 flex items-center justify-center text-indigo-500">
+                      <Icon icon="mdi:shield-check-outline" class="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p class="text-xs font-black text-indigo-700 tracking-tight">Autorización Administrativa</p>
+                      <p class="text-[10px] text-indigo-400 font-medium">Sus pedidos requerirán aprobación de otro Admin.</p>
+                    </div>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" v-model="form.requiresApproval" class="sr-only peer">
+                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+               </div>
 
-            <div v-else class="bg-amber-50 p-4 rounded-2xl flex items-center gap-3 border border-amber-100 animate-in fade-in slide-in-from-left-4 duration-300">
-              <div class="w-10 h-10 rounded-xl bg-white border border-amber-200 flex items-center justify-center text-amber-500 shadow-sm">
-                <Icon icon="mdi:lock-alert-outline" class="w-5 h-5" />
-              </div>
-              <div>
-                <p class="text-xs font-black text-amber-700 tracking-tight uppercase tracking-widest">Aprobación Requerida</p>
-                <p class="text-[10px] text-amber-600 font-medium">Los Compradores siempre necesitan autorización de un administrador.</p>
-              </div>
+               <div v-else class="bg-amber-50 p-4 rounded-2xl flex items-center gap-3 border border-amber-100 animate-in fade-in slide-in-from-left-4 duration-300">
+                  <div class="w-10 h-10 rounded-xl bg-white border border-amber-200 flex items-center justify-center text-amber-500 shadow-sm">
+                    <Icon icon="mdi:lock-alert-outline" class="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p class="text-xs font-black text-amber-700 tracking-tight uppercase tracking-widest">Aprobación Requerida</p>
+                    <p class="text-[10px] text-amber-600 font-medium">Los Compradores siempre necesitan autorización de un administrador.</p>
+                  </div>
+               </div>
+
+               <!-- Spending Limit Input -->
+               <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Límite de Gasto por Pedido (DOP)</label>
+                  <div class="relative">
+                    <Icon icon="mdi:currency-usd" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input v-model="form.orderLimit" type="number" class="input pl-10 bg-white" placeholder="Ej: 5000 (Opcional)" />
+                  </div>
+                  <p class="text-[9px] text-slate-400 mt-2">Los pedidos que superen este monto quedarán en espera de aprobación automáticamente.</p>
+               </div>
             </div>
 
             <div class="flex items-center justify-between pt-6 border-t border-slate-50">
@@ -226,7 +238,8 @@ const form = reactive({
   firstName: '',
   lastName: '',
   role: 'BUYER',
-  requiresApproval: true
+  requiresApproval: true,
+  orderLimit: ''
 })
 
 async function loadTeam() {
@@ -255,7 +268,7 @@ async function sendInvite() {
     ui.alert('Invitación Enviada', `Hemos enviado un correo a ${form.firstName}.`, 'success')
     
     // Reset and reload
-    Object.assign(form, { email: '', firstName: '', lastName: '', role: 'BUYER', requiresApproval: true })
+    Object.assign(form, { email: '', firstName: '', lastName: '', role: 'BUYER', requiresApproval: true, orderLimit: '' })
     await loadTeam()
   } catch (err: unknown) {
     const apiError = err as { response?: { data?: { error?: string } } };

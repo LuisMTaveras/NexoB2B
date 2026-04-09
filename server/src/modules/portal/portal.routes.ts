@@ -5,6 +5,9 @@ import { sendSuccess, sendNotFound } from '../../utils/apiResponse';
 import { prisma } from '../../lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
 import { logAction } from '../../lib/audit';
+import { logger } from '../../lib/logger';
+import { EmailService } from '../../lib/email.service';
+import { PdfService } from '../../lib/pdf.service';
 
 const router = Router();
 
@@ -42,7 +45,7 @@ router.get('/me', asyncHandler(async (req, res) => {
 router.get('/dashboard', asyncHandler(async (req, res) => {
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
-    select: { customerId: true }
+    select: { customerId: true, role: true }
   });
 
   if (!customerUser) return sendNotFound(res);
@@ -58,7 +61,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
 
   // 2. Active Orders
   const orderCount = await prisma.order.count({
-    where: { customerId, companyId, status: { in: ['OPEN', 'CONFIRMED', 'SHIPPED'] } }
+    where: { customerId, companyId, status: { in: ['OPEN', 'CONFIRMED', 'SHIPPED', 'PENDING_APPROVAL'] } }
   });
 
   // 3. Recent Invoices
@@ -68,10 +71,64 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     take: 5
   });
 
+  // 4. Analytics (Admins only)
+  let analytics = null;
+  if (customerUser.role === 'ADMIN') {
+    // Last 6 months - Spend by Month
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const orders = await prisma.order.findMany({
+      where: { 
+        customerId, 
+        companyId, 
+        status: { notIn: ['CANCELLED', 'REJECTED'] },
+        date: { gte: sixMonthsAgo }
+      },
+      select: { total: true, date: true, submittedById: true, submittedBy: { select: { firstName: true, lastName: true } } }
+    });
+
+    const monthlyData: Record<string, number> = {};
+    const userData: Record<string, { name: string, total: number }> = {};
+
+    // Initialize months
+    for (let i = 0; i < 6; i++) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const label = d.toLocaleDateString('es-DO', { month: 'short', year: '2-digit' });
+      monthlyData[label] = 0;
+    }
+
+    orders.forEach(o => {
+      const label = new Date(o.date).toLocaleDateString('es-DO', { month: 'short', year: '2-digit' });
+      if (monthlyData[label] !== undefined) {
+        monthlyData[label] += Number(o.total);
+      }
+
+      if (o.submittedById) {
+        if (!userData[o.submittedById]) {
+          userData[o.submittedById] = { 
+            name: `${o.submittedBy?.firstName} ${o.submittedBy?.lastName}`, 
+            total: 0 
+          };
+        }
+        userData[o.submittedById].total += Number(o.total);
+      }
+    });
+
+    analytics = {
+      spendByMonth: Object.entries(monthlyData).reverse().map(([label, total]) => ({ label, total })),
+      spendByUser: Object.values(userData).sort((a, b) => b.total - a.total).slice(0, 5)
+    };
+  }
+
   return sendSuccess(res, {
     balance,
     orderCount,
-    recentInvoices
+    recentInvoices,
+    analytics
   });
 }));
 
@@ -187,7 +244,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
 
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
-    select: { customerId: true, role: true, requiresApproval: true, customer: { select: { internalCode: true } }, firstName: true, lastName: true, email: true }
+    select: { customerId: true, role: true, requiresApproval: true, orderLimit: true, customer: { select: { internalCode: true } }, firstName: true, lastName: true, email: true }
   });
 
   if (!customerUser) return sendNotFound(res, 'Usuario de cliente no encontrado');
@@ -218,8 +275,10 @@ router.post('/orders', asyncHandler(async (req, res) => {
   // Determinar status basado en rol y configuración:
   // - Los Buyers SIEMPRE requieren aprobación.
   // - Los Admins SOLO si tienen el flag requiresApproval (control de gastos).
+  // - CUALQUIERA si el total supera su límite de gasto (spending limit).
+  const isOverLimit = customerUser.orderLimit !== null && total.gt(customerUser.orderLimit);
   const needsApproval =
-    customerUser.role === 'BUYER' || customerUser.requiresApproval;
+    customerUser.role === 'BUYER' || customerUser.requiresApproval || isOverLimit;
   const orderStatus = needsApproval ? 'PENDING_APPROVAL' : 'OPEN';
 
   // Crear id consecutivo interno básico temporal
@@ -246,6 +305,38 @@ router.post('/orders', asyncHandler(async (req, res) => {
       items: true
     }
   });
+
+  // Notificar a los Administradores si el pedido requiere aprobación
+  if (orderStatus === 'PENDING_APPROVAL') {
+    (async () => {
+      try {
+        const mailer = await EmailService.getCompanyTransporter(companyId);
+        if (mailer) {
+          const admins = await prisma.customerUser.findMany({
+            where: { customerId, role: 'ADMIN', status: 'ACTIVE' },
+            select: { email: true }
+          });
+          
+          for (const admin of admins) {
+            await mailer.transporter.sendMail({
+              from: mailer.from,
+              to: admin.email,
+              subject: `⚠️ Acción Requerida: Pedido ${order.number} por autorizar`,
+              html: EmailService.getApprovalRequiredTemplate({
+                companyName: customerUser.customer?.internalCode || 'NexoB2B',
+                orderNumber: order.number,
+                buyerName: `${customerUser.firstName} ${customerUser.lastName}`,
+                total: total.toString(),
+                currency
+              })
+            });
+          }
+        }
+      } catch (err) {
+        logger.error('Error sending approval notification emails:', err);
+      }
+    })();
+  }
 
   // Audit log
   await logAction({
@@ -280,7 +371,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
 router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
-    select: { customerId: true, role: true, requiresApproval: true }
+    select: { customerId: true, role: true, requiresApproval: true, orderLimit: true }
   });
 
   if (!customerUser) return sendNotFound(res);
@@ -304,7 +395,7 @@ router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
       submittedById: req.user!.userId,
       number: numberStr,
       date: new Date(),
-      status: (customerUser.role === 'BUYER' || customerUser.requiresApproval) ? 'PENDING_APPROVAL' : 'OPEN',
+      status: (customerUser.role === 'BUYER' || customerUser.requiresApproval || (customerUser.orderLimit !== null && existingOrder.total.gt(customerUser.orderLimit))) ? 'PENDING_APPROVAL' : 'OPEN',
       total: existingOrder.total,
       currency: existingOrder.currency,
       notes: `Re-pedido del anterior ${existingOrder.number}`,
@@ -377,6 +468,32 @@ router.patch('/orders/:id/approve', asyncHandler(async (req, res) => {
     }
   });
 
+  // Notificar al comprador de la aprobación
+  if (order.submittedBy?.email) {
+    (async () => {
+      try {
+        const mailer = await EmailService.getCompanyTransporter(req.companyId!);
+        if (mailer) {
+          await mailer.transporter.sendMail({
+            from: mailer.from,
+            to: order.submittedBy.email,
+            subject: `✅ Tu pedido ${order.number} ha sido aprobado`,
+            html: EmailService.getOrderStatusTemplate({
+              companyName: 'Portal B2B',
+              orderNumber: order.number,
+              customerName: order.submittedBy.firstName,
+              newStatus: 'Aprobado (Abierto)',
+              total: order.total.toString(),
+              currency: order.currency
+            })
+          });
+        }
+      } catch (err) {
+        logger.error('Error sending order approval email:', err);
+      }
+    })();
+  }
+
   return sendSuccess(res, updated, 'Pedido aprobado exitosamente.');
 }));
 
@@ -425,8 +542,8 @@ router.patch('/orders/:id/reject', asyncHandler(async (req, res) => {
     userAgent: req.headers['user-agent'],
     details: {
       orderNumber: order.number,
-      reason: reason || 'Sin motivo especificado',
       rejectedBy: { name: `${rejector.firstName} ${rejector.lastName}`, email: rejector.email },
+      reason,
       submittedBy: order.submittedBy ? {
         name: `${(order as any).submittedBy.firstName} ${(order as any).submittedBy.lastName}`,
         email: (order as any).submittedBy.email
@@ -434,15 +551,82 @@ router.patch('/orders/:id/reject', asyncHandler(async (req, res) => {
     }
   });
 
-  return sendSuccess(res, updated, 'Pedido rechazado.');
+  // Notificar al comprador del rechazo
+  if (order.submittedBy?.email) {
+    (async () => {
+      try {
+        const mailer = await EmailService.getCompanyTransporter(req.companyId!);
+        if (mailer) {
+          await mailer.transporter.sendMail({
+            from: mailer.from,
+            to: order.submittedBy.email,
+            subject: `🚫 Tu pedido ${order.number} ha sido rechazado`,
+            html: EmailService.getOrderStatusTemplate({
+              companyName: 'Portal B2B',
+              orderNumber: order.number,
+              customerName: order.submittedBy.firstName,
+              newStatus: 'Rechazado',
+              total: order.total.toString(),
+              currency: order.currency
+            })
+          });
+        }
+      } catch (err) {
+        logger.error('Error sending order rejection email:', err);
+      }
+    })();
+  }
+
+  return sendSuccess(res, updated, 'Pedido rechazado exitosamente.');
+}));
+
+/**
+ * GET /api/portal/orders/:id/proforma
+ * Generates and downloads a proforma PDF for the order
+ */
+router.get('/orders/:id/proforma', asyncHandler(async (req, res) => {
+  const order = await prisma.order.findFirst({
+    where: { 
+      id: req.params.id, 
+      companyId: req.companyId!,
+      // Ensure the order belongs to the customer of the user
+      customer: { users: { some: { id: req.user!.userId } } }
+    },
+    include: {
+      items: true,
+      company: true,
+      submittedBy: true
+    }
+  });
+
+  if (!order) return sendNotFound(res, 'Pedido no encontrado');
+
+  const pdfBuffer = await PdfService.generateProforma({
+    companyName: order.company.name,
+    orderNumber: order.number,
+    date: order.date.toISOString(),
+    customerName: `${order.submittedBy?.firstName} ${order.submittedBy?.lastName}`,
+    items: order.items.map(i => ({
+      name: i.name,
+      sku: i.sku,
+      quantity: i.quantity.toString(),
+      unitPrice: i.unitPrice.toString(),
+      total: i.total.toString()
+    })),
+    total: order.total.toString(),
+    currency: order.currency,
+    notes: order.notes || undefined
+  });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=PROFORMA-${order.number}.pdf`);
+  return res.send(pdfBuffer);
 }));
 
 /**
  * GET /api/portal/invoices/:id/pdf
  * Generates and downloads the PDF version of the invoice
  */
-import { PdfService } from './pdf.service';
-
 router.get('/invoices/:id/pdf', asyncHandler(async (req, res) => {
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
