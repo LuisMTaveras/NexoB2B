@@ -165,7 +165,9 @@ router.get('/orders', asyncHandler(async (req, res) => {
   const orders = await prisma.order.findMany({
     where: { customerId: customerUser.customerId, companyId: req.companyId! },
     include: {
-      items: true
+      items: true,
+      submittedBy: { select: { firstName: true, lastName: true } },
+      approvedBy: { select: { firstName: true, lastName: true } }
     },
     orderBy: { createdAt: 'desc' }
   });
@@ -214,9 +216,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
   });
 
   // Determinar status basado en rol y configuración
-  const needsApproval =
-    customerUser.role === 'BUYER' ||
-    (customerUser.role === 'ADMIN' && customerUser.requiresApproval);
+  const needsApproval = customerUser.requiresApproval;
   const orderStatus = needsApproval ? 'PENDING_APPROVAL' : 'OPEN';
 
   // Crear id consecutivo interno básico temporal
@@ -277,7 +277,7 @@ router.post('/orders', asyncHandler(async (req, res) => {
 router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
-    select: { customerId: true }
+    select: { customerId: true, requiresApproval: true }
   });
 
   if (!customerUser) return sendNotFound(res);
@@ -301,7 +301,7 @@ router.post('/orders/:id/reorder', asyncHandler(async (req, res) => {
       submittedById: req.user!.userId,
       number: numberStr,
       date: new Date(),
-      status: 'OPEN',
+      status: customerUser.requiresApproval ? 'PENDING_APPROVAL' : 'OPEN',
       total: existingOrder.total,
       currency: existingOrder.currency,
       notes: `Re-pedido del anterior ${existingOrder.number}`,

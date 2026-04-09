@@ -33,16 +33,18 @@
 
     <!-- Team List -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div v-if="loading" v-for="i in 3" :key="i" class="card p-6 animate-pulse space-y-4">
-         <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-full bg-slate-200"></div>
-            <div class="flex-1 space-y-2">
-               <div class="h-4 bg-slate-200 rounded w-3/4"></div>
-               <div class="h-3 bg-slate-200 rounded w-1/2"></div>
-            </div>
-         </div>
-         <div class="h-8 bg-slate-100 rounded-lg w-full"></div>
-      </div>
+      <template v-if="loading">
+        <div v-for="i in 3" :key="i" class="card p-6 animate-pulse space-y-4">
+           <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-full bg-slate-200"></div>
+              <div class="flex-1 space-y-2">
+                 <div class="h-4 bg-slate-200 rounded w-3/4"></div>
+                 <div class="h-3 bg-slate-200 rounded w-1/2"></div>
+              </div>
+           </div>
+           <div class="h-8 bg-slate-100 rounded-lg w-full"></div>
+        </div>
+      </template>
 
       <div 
         v-else 
@@ -147,6 +149,22 @@
               </div>
             </div>
 
+            <div class="bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-100">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500">
+                  <Icon icon="mdi:shield-check-outline" class="w-5 h-5" />
+                </div>
+                <div>
+                  <p class="text-xs font-black text-slate-700 tracking-tight">Requiere aprobación</p>
+                  <p class="text-[10px] text-slate-400 font-medium">Sus pedidos quedarán pendientes hasta ser autorizados.</p>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="form.requiresApproval" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
             <div class="flex items-center justify-between pt-6 border-t border-slate-50">
                <p class="text-[10px] font-bold text-slate-400 max-w-[200px]">
                  Se enviará un correo con un enlace de activación seguro.
@@ -176,17 +194,29 @@ import api from '@/services/api'
 const ui = useUiStore()
 const auth = useAuthStore()
 
+interface TeamMember {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  role: string
+  status: string
+  lastLoginAt?: string
+  createdAt: string
+}
+
 const loading = ref(true)
 const inviting = ref(false)
 const showInviteModal = ref(false)
-const team = ref<any[]>([])
+const team = ref<TeamMember[]>([])
 const meta = reactive({ count: 0, maxUsers: 5 })
 
 const form = reactive({
   email: '',
   firstName: '',
   lastName: '',
-  role: 'BUYER'
+  role: 'BUYER',
+  requiresApproval: true
 })
 
 async function loadTeam() {
@@ -195,7 +225,7 @@ async function loadTeam() {
     const res = await api.get('/customers/me/team')
     team.value = res.data.data
     Object.assign(meta, res.data.meta)
-  } catch (error) {
+  } catch {
     console.error('Failed to load team')
   } finally {
     loading.value = false
@@ -205,7 +235,9 @@ async function loadTeam() {
 async function sendInvite() {
   inviting.value = true
   try {
-    const targetCustomerId = (auth.user as any).customerId
+    const targetCustomerId = auth.user?.customerId
+    
+    if (!targetCustomerId) throw new Error('Customer ID missing')
     
     await api.post(`/customers/${targetCustomerId}/invite`, form)
     
@@ -213,10 +245,11 @@ async function sendInvite() {
     ui.alert('Invitación Enviada', `Hemos enviado un correo a ${form.firstName}.`, 'success')
     
     // Reset and reload
-    Object.assign(form, { email: '', firstName: '', lastName: '', role: 'BUYER' })
+    Object.assign(form, { email: '', firstName: '', lastName: '', role: 'BUYER', requiresApproval: true })
     await loadTeam()
-  } catch (err: any) {
-    const msg = err.response?.data?.error || 'Error al enviar invitación'
+  } catch (err: unknown) {
+    const apiError = err as { response?: { data?: { error?: string } } };
+    const msg = apiError.response?.data?.error || 'Error al enviar invitación'
     ui.alert('Error', msg, 'error')
   } finally {
     inviting.value = false

@@ -135,7 +135,7 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
           firstName,
           lastName,
           role: role || 'BUYER',
-          requiresApproval: role === 'ADMIN' ? (requiresApproval ?? false) : false,
+          requiresApproval: requiresApproval ?? (role === 'ADMIN' ? false : true),
           status: 'INVITED',
           passwordHash: '',
         }

@@ -10,6 +10,7 @@ export interface AuthUser {
   email: string
   role: string
   type: 'internal' | 'customer'
+  customerId?: string
 }
 
 export interface AuthCompany {

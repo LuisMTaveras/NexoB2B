@@ -98,8 +98,41 @@
                    </table>
                 </div>
 
+                <!-- Approval Info / Actions -->
+                <div v-if="order.status === 'PENDING_APPROVAL' || order.status === 'REJECTED' || order.approvedAt" class="mt-6 mb-4 p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4" :class="order.status === 'REJECTED' ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-200'">
+                   <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center border" :class="order.status === 'REJECTED' ? 'bg-white text-rose-500 border-rose-200' : 'bg-white text-indigo-500 border-slate-200'">
+                         <Icon :icon="order.status === 'REJECTED' ? 'mdi:alert-octagon-outline' : 'mdi:shield-check-outline'" class="w-6 h-6" />
+                      </div>
+                      <div>
+                         <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Estado de Autorización</p>
+                         <h4 class="text-sm font-black text-slate-700" v-if="order.status === 'PENDING_APPROVAL'">Esperando validación interna</h4>
+                         <h4 class="text-sm font-black text-rose-700" v-else-if="order.status === 'REJECTED'">Pedido Rechazado: {{ order.rejectedReason }}</h4>
+                         <h4 class="text-sm font-black text-emerald-700" v-else>Pedido Autorizado por Administración</h4>
+                      </div>
+                   </div>
+
+                   <div v-if="order.status === 'PENDING_APPROVAL' && isAdmin" class="flex gap-2">
+                      <button 
+                        @click.stop="rejectOrder(order)"
+                        class="px-4 py-2 bg-white text-rose-600 border border-rose-200 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-50 transition-all shadow-sm flex items-center gap-2"
+                      >
+                         <Icon icon="mdi:close-thick" class="w-4 h-4" />
+                         Rechazar
+                      </button>
+                      <button 
+                        @click.stop="approveOrder(order)"
+                        :disabled="approving === order.id"
+                        class="px-5 py-2 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                      >
+                         <Icon :icon="approving === order.id ? 'mdi:loading' : 'mdi:check-bold'" :class="{'animate-spin': approving === order.id}" class="w-4 h-4" />
+                         {{ approving === order.id ? 'Aprobando...' : 'Aprobar Pedido' }}
+                      </button>
+                   </div>
+                </div>
+
                 <!-- Actions -->
-                <div class="mt-6 flex justify-end gap-3">
+                <div class="mt-6 flex justify-end gap-3 px-2">
                    <RouterLink 
                      :to="`/portal/support?orderId=${order.number}`"
                      class="px-4 py-2 border border-slate-200 bg-white text-[var(--color-brand-600)] text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm flex items-center gap-2"
@@ -122,6 +155,35 @@
 
        </div>
     </div>
+
+    <!-- Rejection Modal -->
+    <div v-if="showRejectModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+       <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+          <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+             <h3 class="text-lg font-black text-slate-800 tracking-tight">Rechazar Pedido</h3>
+             <button @click="showRejectModal = false" class="text-slate-400 hover:text-slate-600 transition-colors">✕</button>
+          </div>
+          <div class="p-6 space-y-4">
+             <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">¿Por qué deseas rechazar el pedido {{ rejectTarget?.number }}?</p>
+             <textarea 
+               v-model="rejectReason" 
+               class="w-full h-32 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none transition-all resize-none"
+               placeholder="Escribe el motivo del rechazo aquí..."
+             ></textarea>
+             
+             <div class="flex gap-3 pt-4">
+                <button @click="showRejectModal = false" class="btn bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-6 py-2.5 rounded-xl flex-1">Cancelar</button>
+                <button 
+                  @click="confirmReject" 
+                  :disabled="!rejectReason.trim() || rejecting"
+                  class="btn bg-rose-600 hover:bg-rose-700 text-white font-black px-6 py-2.5 rounded-xl flex-1 shadow-lg shadow-rose-200 disabled:opacity-50"
+                >
+                   {{ rejecting ? 'Procesando...' : 'Confirmar Rechazo' }}
+                </button>
+             </div>
+          </div>
+       </div>
+    </div>
   </div>
 </template>
 
@@ -133,16 +195,40 @@ import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
-const isAdmin = computed(() => (auth.user as any)?.role === 'ADMIN')
+const isAdmin = computed(() => auth.user?.role === 'ADMIN')
 
-const orders = ref<any[]>([])
+interface OrderItem {
+  id: string
+  name: string
+  sku: string
+  quantity: number | string
+  unitPrice: number | string
+  total: number | string
+}
+
+interface Order {
+  id: string
+  number: string
+  date: string
+  status: string
+  total: number | string
+  currency: string
+  notes?: string
+  items?: OrderItem[]
+  rejectedReason?: string
+  approvedAt?: string
+  submittedBy?: { firstName: string; lastName: string; email?: string }
+  approvedBy?: { firstName: string; lastName: string; email?: string }
+}
+
+const orders = ref<Order[]>([])
 const loading = ref(true)
 const expandedOrder = ref<string | null>(null)
 const reordering = ref<string | null>(null)
 const approving = ref<string | null>(null)
 const rejecting = ref(false)
 const showRejectModal = ref(false)
-const rejectTarget = ref<any>(null)
+const rejectTarget = ref<Order | null>(null)
 const rejectReason = ref('')
 
 const fetchOrders = async () => {
@@ -161,19 +247,20 @@ const toggleOrder = (id: string) => {
   expandedOrder.value = expandedOrder.value === id ? null : id
 }
 
-const approveOrder = async (order: any) => {
+const approveOrder = async (order: Order) => {
   approving.value = order.id
   try {
     await api.patch(`/portal/orders/${order.id}/approve`)
     await fetchOrders()
-  } catch (err: any) {
-    alert(err.response?.data?.error || 'No se pudo aprobar el pedido.')
+  } catch (err: unknown) {
+    const apiError = err as { response?: { data?: { error?: string } } };
+    alert(apiError.response?.data?.error || 'No se pudo aprobar el pedido.')
   } finally {
     approving.value = null
   }
 }
 
-const rejectOrder = (order: any) => {
+const rejectOrder = (order: Order) => {
   rejectTarget.value = order
   rejectReason.value = ''
   showRejectModal.value = true
@@ -186,14 +273,15 @@ const confirmReject = async () => {
     await api.patch(`/portal/orders/${rejectTarget.value.id}/reject`, { reason: rejectReason.value })
     showRejectModal.value = false
     await fetchOrders()
-  } catch (err: any) {
-    alert(err.response?.data?.error || 'No se pudo rechazar el pedido.')
+  } catch (err: unknown) {
+    const apiError = err as { response?: { data?: { error?: string } } };
+    alert(apiError.response?.data?.error || 'No se pudo rechazar el pedido.')
   } finally {
     rejecting.value = false
   }
 }
 
-const reorderOrder = async (order: any) => {
+const reorderOrder = async (order: Order) => {
   if (reordering.value) return
   reordering.value = order.id
   try {
@@ -260,7 +348,7 @@ const getStatusBadgeClass = (status: string) => {
 }
 
 const mapStatus = (status: string) => {
-  const map: any = {
+  const map: Record<string, string> = {
     PENDING_APPROVAL: 'Pend. Aprobación',
     OPEN: 'Abierto / En Revisión',
     CONFIRMED: 'Confirmado',
