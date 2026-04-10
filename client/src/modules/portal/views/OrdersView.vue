@@ -18,7 +18,7 @@
     </div>
 
     <!-- Filters Bar -->
-    <div class="mb-8 flex flex-wrap items-center gap-4 bg-white/50 p-4 rounded-2xl border border-[var(--color-brand-100)] backdrop-blur-sm">
+    <div class="mb-4 flex flex-wrap items-center gap-4 bg-white/50 p-4 rounded-2xl border border-[var(--color-brand-100)] backdrop-blur-sm">
       <div class="relative flex-1 min-w-[200px]">
         <Icon icon="mdi:search" class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-brand-400)]" />
         <input v-model="search" type="text" placeholder="Buscar por número o SKU..." 
@@ -34,13 +34,30 @@
         <option value="CANCELLED">Cancelado</option>
         <option value="REJECTED">Rechazado</option>
       </select>
-      <select v-model="dateFilter" class="pl-4 pr-10 py-2 bg-white border border-[var(--color-brand-100)] rounded-xl text-sm font-bold text-[var(--color-brand-700)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-400)] appearance-none cursor-pointer">
-        <option value="all">Cualquier fecha</option>
-        <option value="today">Hoy</option>
-        <option value="week">Esta semana</option>
-        <option value="month">Este mes</option>
-        <option value="quarter">Últimos 3 meses</option>
-      </select>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 bg-white border border-[var(--color-brand-100)] rounded-xl px-3 py-1">
+          <Icon icon="mdi:calendar-start" class="w-4 h-4 text-[var(--color-brand-400)]" />
+          <input v-model="dateFrom" type="date" class="text-xs font-bold text-[var(--color-brand-700)] bg-transparent border-none outline-none w-[120px] cursor-pointer" />
+        </div>
+        <span class="text-[10px] font-black text-slate-300 uppercase">a</span>
+        <div class="flex items-center gap-1.5 bg-white border border-[var(--color-brand-100)] rounded-xl px-3 py-1">
+          <Icon icon="mdi:calendar-end" class="w-4 h-4 text-[var(--color-brand-400)]" />
+          <input v-model="dateTo" type="date" class="text-xs font-bold text-[var(--color-brand-700)] bg-transparent border-none outline-none w-[120px] cursor-pointer" />
+        </div>
+      </div>
+    </div>
+    <!-- Date Presets -->
+    <div class="mb-8 flex flex-wrap items-center gap-2">
+      <button v-for="preset in datePresets" :key="preset.key" @click="applyDatePreset(preset.key)"
+        class="px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all"
+        :class="activePreset === preset.key ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'"
+      >
+        {{ preset.label }}
+      </button>
+      <button v-if="dateFrom || dateTo" @click="clearDateFilter" class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-all flex items-center gap-1">
+        <Icon icon="mdi:close" class="w-3 h-3" />
+        Limpiar
+      </button>
     </div>
 
     <div v-if="loading" class="flex flex-col gap-4">
@@ -280,12 +297,53 @@ const successMessage = ref('')
 // Filters
 const search = ref('')
 const statusFilter = ref('ALL')
-const dateFilter = ref('all')
+const dateFrom = ref('')
+const dateTo = ref('')
+const activePreset = ref('')
+
+const datePresets = [
+  { key: 'today', label: 'Hoy' },
+  { key: 'week', label: 'Esta Semana' },
+  { key: 'month', label: 'Este Mes' },
+  { key: 'quarter', label: 'Trimestre' },
+  { key: 'all', label: 'Todo' },
+]
+
+const toDateStr = (d: Date) => d.toISOString().split('T')[0]
+
+const applyDatePreset = (key: string) => {
+  activePreset.value = key
+  const now = new Date()
+  if (key === 'all') {
+    dateFrom.value = ''
+    dateTo.value = ''
+    return
+  }
+  dateTo.value = toDateStr(now)
+  if (key === 'today') {
+    dateFrom.value = toDateStr(now)
+  } else if (key === 'week') {
+    const d = new Date(); d.setDate(d.getDate() - 7)
+    dateFrom.value = toDateStr(d)
+  } else if (key === 'month') {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1)
+    dateFrom.value = toDateStr(d)
+  } else if (key === 'quarter') {
+    const d = new Date(); d.setMonth(d.getMonth() - 3)
+    dateFrom.value = toDateStr(d)
+  }
+}
+
+const clearDateFilter = () => {
+  dateFrom.value = ''
+  dateTo.value = ''
+  activePreset.value = ''
+}
 
 const resetFilters = () => {
   search.value = ''
   statusFilter.value = 'ALL'
-  dateFilter.value = 'all'
+  clearDateFilter()
 }
 
 const filteredOrders = computed(() => {
@@ -299,24 +357,16 @@ const filteredOrders = computed(() => {
     // 2. Status
     const matchesStatus = statusFilter.value === 'ALL' || o.status === statusFilter.value
 
-    // 3. Date
+    // 3. Date Range
     let matchesDate = true
-    if (dateFilter.value !== 'all') {
-      const orderDate = new Date(o.date)
-      const now = new Date()
-      if (dateFilter.value === 'today') {
-        matchesDate = orderDate.toDateString() === now.toDateString()
-      } else if (dateFilter.value === 'week') {
-        const lastWeek = new Date()
-        lastWeek.setDate(lastWeek.getDate() - 7)
-        matchesDate = orderDate >= lastWeek
-      } else if (dateFilter.value === 'month') {
-        matchesDate = orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()
-      } else if (dateFilter.value === 'quarter') {
-        const quarterAgo = new Date()
-        quarterAgo.setMonth(quarterAgo.getMonth() - 3)
-        matchesDate = orderDate >= quarterAgo
-      }
+    const orderDate = new Date(o.date)
+    if (dateFrom.value) {
+      matchesDate = orderDate >= new Date(dateFrom.value)
+    }
+    if (matchesDate && dateTo.value) {
+      const endDate = new Date(dateTo.value)
+      endDate.setHours(23, 59, 59, 999)
+      matchesDate = orderDate <= endDate
     }
 
     return matchesSearch && matchesStatus && matchesDate

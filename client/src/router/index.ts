@@ -164,20 +164,28 @@ const router = createRouter({
           component: () => import('@/modules/portal/views/InvoicesView.vue'),
         },
         {
-          path: 'team',
-          name: 'portal-team',
-          component: () => import('@/modules/portal/views/PortalUsersView.vue'),
-          meta: { role: 'ADMIN' }
-        },
-        {
           path: 'support',
           name: 'portal-support',
           component: () => import('@/modules/support/views/SupportView.vue'),
         },
+        // ─── Account Settings (Nested Layout) ─────────────────────
         {
-          path: 'profile',
-          name: 'portal-profile',
-          component: () => import('@/modules/portal/views/ProfileView.vue'),
+          path: 'account',
+          component: () => import('@/modules/portal/views/PortalAccountLayout.vue'),
+          children: [
+            { path: '', redirect: '/portal/account/profile' },
+            {
+              path: 'profile',
+              name: 'portal-profile',
+              component: () => import('@/modules/portal/views/ProfileView.vue'),
+            },
+            {
+              path: 'team',
+              name: 'portal-team',
+              component: () => import('@/modules/portal/views/PortalUsersView.vue'),
+              meta: { role: 'ADMIN' }
+            },
+          ]
         },
       ],
     },

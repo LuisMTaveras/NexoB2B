@@ -54,11 +54,30 @@
         <option value="PENDING">Pendiente</option>
         <option value="OVERDUE">Vencida</option>
       </select>
-      <select v-model="dateFilter" class="pl-4 pr-10 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer">
-        <option value="all">Historico</option>
-        <option value="this-month">Este mes</option>
-        <option value="last-30">Últimos 30 días</option>
-      </select>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 bg-slate-50 rounded-xl px-3 py-1 border border-slate-100">
+          <Icon icon="mdi:calendar-start" class="w-4 h-4 text-slate-400" />
+          <input v-model="dateFrom" type="date" class="text-xs font-bold text-slate-700 bg-transparent border-none outline-none w-[120px] cursor-pointer" />
+        </div>
+        <span class="text-[10px] font-black text-slate-300 uppercase">a</span>
+        <div class="flex items-center gap-1.5 bg-slate-50 rounded-xl px-3 py-1 border border-slate-100">
+          <Icon icon="mdi:calendar-end" class="w-4 h-4 text-slate-400" />
+          <input v-model="dateTo" type="date" class="text-xs font-bold text-slate-700 bg-transparent border-none outline-none w-[120px] cursor-pointer" />
+        </div>
+      </div>
+    </div>
+    <!-- Date Presets -->
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <button v-for="preset in datePresets" :key="preset.key" @click="applyDatePreset(preset.key)"
+        class="px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all"
+        :class="activePreset === preset.key ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'"
+      >
+        {{ preset.label }}
+      </button>
+      <button v-if="dateFrom || dateTo" @click="clearDateFilter" class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-all flex items-center gap-1">
+        <Icon icon="mdi:close" class="w-3 h-3" />
+        Limpiar
+      </button>
     </div>
 
     <!-- Invoices Table -->
@@ -142,12 +161,53 @@ const generatingPdf = ref(false)
 // Filters
 const search = ref('')
 const statusFilter = ref('ALL')
-const dateFilter = ref('all')
+const dateFrom = ref('')
+const dateTo = ref('')
+const activePreset = ref('')
+
+const datePresets = [
+  { key: 'today', label: 'Hoy' },
+  { key: 'month', label: 'Este Mes' },
+  { key: 'last30', label: 'Últ. 30 Días' },
+  { key: 'quarter', label: 'Trimestre' },
+  { key: 'all', label: 'Todo' },
+]
+
+const toDateStr = (d: Date) => d.toISOString().split('T')[0]
+
+const applyDatePreset = (key: string) => {
+  activePreset.value = key
+  const now = new Date()
+  if (key === 'all') {
+    dateFrom.value = ''
+    dateTo.value = ''
+    return
+  }
+  dateTo.value = toDateStr(now)
+  if (key === 'today') {
+    dateFrom.value = toDateStr(now)
+  } else if (key === 'month') {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1)
+    dateFrom.value = toDateStr(d)
+  } else if (key === 'last30') {
+    const d = new Date(); d.setDate(d.getDate() - 30)
+    dateFrom.value = toDateStr(d)
+  } else if (key === 'quarter') {
+    const d = new Date(); d.setMonth(d.getMonth() - 3)
+    dateFrom.value = toDateStr(d)
+  }
+}
+
+const clearDateFilter = () => {
+  dateFrom.value = ''
+  dateTo.value = ''
+  activePreset.value = ''
+}
 
 const resetFilters = () => {
   search.value = ''
   statusFilter.value = 'ALL'
-  dateFilter.value = 'all'
+  clearDateFilter()
 }
 
 const totalInvoiced = computed(() => invoices.value.reduce((s, i) => s + Number(i.total), 0))
@@ -162,18 +222,16 @@ const filteredInvoices = computed(() => {
     // 2. Status
     const matchesStatus = statusFilter.value === 'ALL' || inv.status === statusFilter.value
     
-    // 3. Date
+    // 3. Date Range
     let matchesDate = true
-    if (dateFilter.value !== 'all') {
-      const date = new Date(inv.date)
-      const now = new Date()
-      if (dateFilter.value === 'this-month') {
-        matchesDate = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-      } else if (dateFilter.value === 'last-30') {
-        const thirtyDaysAgo = new Date()
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-        matchesDate = date >= thirtyDaysAgo
-      }
+    const invDate = new Date(inv.date)
+    if (dateFrom.value) {
+      matchesDate = invDate >= new Date(dateFrom.value)
+    }
+    if (matchesDate && dateTo.value) {
+      const endDate = new Date(dateTo.value)
+      endDate.setHours(23, 59, 59, 999)
+      matchesDate = invDate <= endDate
     }
     
     return matchesSearch && matchesStatus && matchesDate

@@ -111,7 +111,7 @@
           <div class="card p-6 border-indigo-100 bg-white group hover:border-indigo-300 transition-all">
              <div class="flex items-center justify-between mb-4">
                 <h3 class="font-black text-slate-800 uppercase text-xs tracking-widest">Información de Perfil</h3>
-                <RouterLink to="/portal/profile" class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                <RouterLink to="/portal/account/profile" class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
                    <Icon icon="mdi:pencil-outline" class="w-4 h-4" />
                 </RouterLink>
              </div>
@@ -135,7 +135,7 @@
                 Gestión de Delegados
              </h3>
              <p class="text-[11px] text-indigo-600 font-medium mb-4">Administra quiénes pueden realizar pedidos en nombre de tu empresa.</p>
-             <RouterLink to="/portal/team" class="btn bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white w-full py-2.5 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+             <RouterLink to="/portal/account/team" class="btn bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white w-full py-2.5 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
                 <Icon icon="mdi:account-plus-outline" />
                 Administrar Mi Equipo
              </RouterLink>

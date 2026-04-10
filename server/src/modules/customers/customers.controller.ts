@@ -349,6 +349,7 @@ export const listMyTeam = async (req: Request, res: Response, next: NextFunction
         role: true,
         status: true,
         lastLoginAt: true,
+        lastActiveAt: true,
         createdAt: true
       },
       orderBy: { createdAt: 'asc' }

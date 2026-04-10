@@ -1,136 +1,116 @@
 <template>
-  <div class="animate-in fade-in slide-in-from-bottom-5 duration-700 pb-20">
-    <!-- Header Section -->
-    <div class="mb-12 text-center">
-       <div class="relative inline-block group">
-          <div class="w-32 h-32 rounded-[2.5rem] bg-linear-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center text-4xl font-black shadow-[0_20px_50px_-15px_rgba(79,70,229,0.4)] border-4 border-white ring-1 ring-indigo-100 transition-transform group-hover:scale-105 duration-500">
+  <div class="animate-in fade-in duration-300 pb-20 mt-4 max-w-5xl mx-auto">
+    
+    <!-- Profile Header -->
+    <div class="px-8 mt-12 mb-16 flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+       <div class="relative group">
+          <div class="w-40 h-40 rounded-[2.5rem] bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-5xl font-black shadow-[0_20px_50px_-15px_rgba(79,70,229,0.5)] border-4 border-slate-50 ring-4 ring-indigo-50 transition-transform duration-500 group-hover:scale-105 group-hover:rotate-3">
             {{ initials }}
           </div>
-          <div class="absolute -bottom-2 -right-2 w-12 h-12 rounded-2xl bg-emerald-500 border-4 border-white flex items-center justify-center text-white shadow-xl animate-bounce-subtle" title="Perfil Verificado">
+          <div class="absolute bottom-0 right-0 w-12 h-12 rounded-2xl bg-emerald-500 border-4 border-slate-50 flex items-center justify-center text-white shadow-xl animate-bounce-subtle" title="Perfil Verificado">
              <Icon icon="mdi:check-decagram" class="w-6 h-6" />
           </div>
        </div>
-       <h2 class="text-4xl font-black text-slate-900 tracking-tight mt-6">{{ auth.fullName }}</h2>
-       <div class="flex items-center justify-center gap-3 mt-3">
-          <span class="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] font-black uppercase tracking-widest border border-indigo-100 shadow-sm">
-             {{ auth.user?.role === 'ADMIN' ? 'Administrador B2B' : 'Comprador Autorizado' }}
-          </span>
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-          <p class="text-base text-slate-500 font-bold opacity-80">{{ auth.user?.email }}</p>
+
+       <div class="flex-1 space-y-3 pb-2">
+         <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-lg shadow-sm">
+            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span class="text-[9px] font-black uppercase tracking-widest text-emerald-700">Cuenta Activa</span>
+         </div>
+         <h2 class="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">{{ auth.fullName }}</h2>
+         <p class="text-lg font-bold text-slate-500 flex items-center justify-center md:justify-start gap-2">
+           <Icon icon="mdi:email-outline" class="w-5 h-5 opacity-70" />
+           {{ auth.user?.email }}
+         </p>
        </div>
     </div>
     
-    <!-- Main Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      <!-- Left Column: Primary Info (8 cols) -->
-      <div class="lg:col-span-8 space-y-8">
+    <!-- Main Content Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
         <!-- Company Info Card -->
-        <div class="card p-10 bg-white border-slate-100 shadow-[0_15px_40px_-20px_rgba(0,0,0,0.08)] relative overflow-hidden group">
-           <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-50 opacity-20 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-125 transition-transform duration-700"></div>
+        <div class="group relative bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] p-10 shadow-[0_15px_40px_-20px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_50px_-20px_rgba(79,70,229,0.15)] transition-all duration-500 overflow-hidden">
+           <div class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-100 to-transparent opacity-40 rounded-full -translate-y-1/2 translate-x-1/2 transition-transform duration-700 group-hover:scale-110"></div>
            
-           <h3 class="font-black text-slate-400 uppercase text-[10px] tracking-[0.2em] mb-8 flex items-center gap-3">
-              <div class="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                <Icon icon="mdi:office-building-outline" class="w-5 h-5" />
-              </div>
-              Información Corporativa
-           </h3>
+           <div class="w-16 h-16 bg-gradient-to-br from-indigo-50 to-white rounded-3xl border border-indigo-100 shadow-inner flex items-center justify-center text-indigo-600 mb-8 relative z-10 group-hover:-translate-y-1 transition-transform">
+              <Icon icon="mdi:office-building-outline" class="w-8 h-8" />
+           </div>
+
+           <h3 class="font-black text-slate-800 text-2xl tracking-tight mb-8 relative z-10">Información Corporativa</h3>
            
-           <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-10 gap-x-12 relative z-10">
-              <div class="space-y-2">
-                 <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Empresa Registrada</p>
-                 <p class="text-xl font-black text-slate-800 tracking-tight">{{ auth.user?.customerName || 'Empresa No Identificada' }}</p>
+           <div class="space-y-8 relative z-10">
+              <div class="bg-slate-50/50 p-5 rounded-2xl border border-slate-100/50">
+                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Empresa Registrada</p>
+                 <p class="text-xl font-black text-slate-900 tracking-tight">{{ auth.user?.customerName || 'Empresa No Identificada' }}</p>
               </div>
-              <div class="space-y-2">
-                 <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Estado de Cuenta</p>
-                 <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <p class="text-xl font-black text-emerald-600 tracking-tight">Activo / Verificado</p>
-                 </div>
+
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100/30">
+                  <p class="text-[10px] font-black text-indigo-400/80 uppercase tracking-widest mb-1">Código ID</p>
+                  <p class="text-base font-black text-indigo-900 uppercase tracking-widest">NX-{{ auth.user?.id.slice(-6).toUpperCase() }}</p>
+                </div>
+                <div class="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100/30">
+                  <p class="text-[10px] font-black text-emerald-400/80 uppercase tracking-widest mb-1">Rol B2B</p>
+                  <p class="text-sm font-black text-emerald-700 tracking-tight leading-tight mt-1">{{ auth.user?.role === 'ADMIN' ? 'Administrador' : 'Comprador' }}</p>
+                </div>
               </div>
-              <div class="space-y-2 pt-4 border-t border-slate-50">
-                 <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Proveedor Principal</p>
-                 <p class="text-lg font-bold text-slate-600 italic tracking-tight">{{ auth.company?.name }}</p>
-              </div>
-              <div class="space-y-2 pt-4 border-t border-slate-50">
-                 <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Código Interno</p>
-                 <p class="text-lg font-bold text-slate-600 tracking-widest uppercase">NX-{{ auth.user?.id.slice(-6).toUpperCase() }}</p>
+
+              <div class="flex items-center gap-4 py-4 px-2 border-t border-slate-100">
+                <Icon icon="mdi:storefront-outline" class="w-6 h-6 text-slate-400" />
+                <div>
+                   <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Proveedor Activo</p>
+                   <p class="text-sm font-bold text-slate-600 tracking-tight">{{ auth.company?.name }}</p>
+                </div>
               </div>
            </div>
         </div>
 
         <!-- Security Card -->
-        <div class="card p-10 bg-white border-slate-100 shadow-[0_15px_40px_-20px_rgba(0,0,0,0.08)]">
-           <h3 class="font-black text-slate-400 uppercase text-[10px] tracking-[0.2em] mb-8 flex items-center gap-3">
-              <div class="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-                <Icon icon="mdi:shield-lock-outline" class="w-5 h-5" />
-              </div>
-              Seguridad y Privacidad
-           </h3>
+        <div class="group relative bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[2.5rem] p-10 shadow-[0_15px_40px_-20px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_50px_-20px_rgba(79,70,229,0.15)] transition-all duration-500 overflow-hidden">
+           <div class="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-slate-100 to-transparent opacity-40 rounded-full -translate-y-1/2 translate-x-1/2 transition-transform duration-700 group-hover:scale-110"></div>
            
-           <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <button @click="showPasswordModal = true" class="flex items-center justify-between p-6 rounded-2xl bg-slate-50 hover:bg-white border-2 border-transparent hover:border-indigo-100 hover:shadow-lg transition-all group cursor-pointer">
-                 <div class="flex items-center gap-4 text-left">
-                    <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-indigo-600 shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+           <div class="w-16 h-16 bg-gradient-to-br from-slate-50 to-white rounded-3xl border border-slate-200 shadow-inner flex items-center justify-center text-slate-800 mb-8 relative z-10 group-hover:-translate-y-1 transition-transform">
+              <Icon icon="mdi:shield-lock-outline" class="w-8 h-8" />
+           </div>
+
+           <h3 class="font-black text-slate-800 text-2xl tracking-tight mb-8 relative z-10">Seguridad de la Cuenta</h3>
+           
+           <div class="space-y-5 relative z-10">
+              <button @click="showPasswordModal = true" class="w-full flex items-center justify-between p-6 rounded-2xl bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-[0_10px_30px_-10px_rgba(79,70,229,0.2)] transition-all group/btn cursor-pointer">
+                 <div class="flex items-center gap-5 text-left">
+                    <div class="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500 group-hover/btn:bg-indigo-600 group-hover/btn:text-white group-hover/btn:shadow-md transition-all">
                        <Icon icon="mdi:key-variant" class="w-6 h-6" />
                     </div>
                     <div>
-                       <p class="text-sm font-black text-slate-800 leading-tight">Contraseña</p>
-                       <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Actualizar clave</p>
+                       <p class="text-base font-black text-slate-800 leading-tight group-hover/btn:text-indigo-900 transition-colors">Contraseña Segura</p>
+                       <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Haz clic para actualizar</p>
                     </div>
                  </div>
-                 <Icon icon="mdi:chevron-right" class="w-5 h-5 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                 <Icon icon="mdi:arrow-right" class="w-5 h-5 text-slate-300 group-hover/btn:text-indigo-600 group-hover/btn:translate-x-1 transition-all" />
               </button>
               
-              <button class="flex items-center justify-between p-6 rounded-2xl bg-slate-50 hover:bg-white border-2 border-transparent hover:border-indigo-100 hover:shadow-lg transition-all group opacity-60 cursor-not-allowed">
-                 <div class="flex items-center gap-4 text-left">
-                    <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-indigo-600 shadow-sm">
+              <div class="w-full flex items-center justify-between p-6 rounded-2xl bg-slate-50/50 border border-slate-100 opacity-70">
+                 <div class="flex items-center gap-5 text-left">
+                    <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
                        <Icon icon="mdi:cellphone-lock" class="w-6 h-6" />
                     </div>
                     <div>
-                       <p class="text-sm font-black text-slate-800 leading-tight">Autenticación 2FA</p>
-                       <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Nivel: Estándar</p>
+                       <div class="flex items-center gap-2">
+                         <p class="text-base font-black text-slate-800 leading-tight">Autenticación 2FA</p>
+                         <span class="px-2 py-0.5 bg-slate-200 text-slate-500 text-[8px] font-black uppercase rounded-md tracking-widest">Próximamente</span>
+                       </div>
+                       <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Nivel de Seguridad Estándar</p>
                     </div>
                  </div>
                  <Icon icon="mdi:lock-outline" class="w-5 h-5 text-slate-300" />
-              </button>
-           </div>
-        </div>
-      </div>
+              </div>
 
-      <!-- Right Column: Contextual Sidebars (4 cols) -->
-      <div class="lg:col-span-4 space-y-8">
-        <!-- Admin Management Block -->
-        <div v-if="auth.user?.role === 'ADMIN'" class="card p-8 bg-linear-to-br from-slate-900 to-slate-800 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden group border-none">
-           <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-white opacity-[0.03] rounded-full group-hover:scale-110 transition-transform duration-1000"></div>
-           
-           <div class="relative z-10">
-              <span class="inline-flex px-3 py-1 bg-white/10 text-white text-[9px] font-black uppercase tracking-widest rounded-lg mb-4 border border-white/10">Panel Administrativo</span>
-              <h3 class="text-2xl font-black mb-4 leading-tight tracking-tight">Gestión de Equipo Corporativo</h3>
-              <p class="text-xs text-white/60 mb-8 leading-relaxed font-medium">Controle los accesos, límites de gasto y jerarquías de compra para su organización desde un solo lugar.</p>
-              
-              <RouterLink to="/portal/team" class="w-full h-14 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-500 hover:shadow-xl hover:shadow-indigo-900/40 transition-all border border-indigo-400/30">
-                 <Icon icon="mdi:account-multiple-plus" class="w-5 h-5" />
-                 Administrar Delegados
-              </RouterLink>
+               <div class="mt-8 pt-8 border-t border-slate-100">
+                  <p class="text-xs text-slate-500 font-medium leading-relaxed">
+                    Asegúrate de no compartir tus credenciales de NexoB2B con personal no autorizado. Las compras realizadas bajo tu usuario comprometen la responsabilidad de tu empresa.
+                  </p>
+               </div>
            </div>
         </div>
-
-        <!-- Session Control -->
-        <div class="card p-10 bg-linear-to-b from-rose-50 to-white border-rose-100/50 shadow-xl shadow-rose-100/20 text-center relative">
-           <div class="w-16 h-16 rounded-3xl bg-white border border-rose-100 flex items-center justify-center text-rose-500 shadow-sm mx-auto mb-6">
-              <Icon icon="mdi:logout-variant" class="w-8 h-8" />
-           </div>
-           <h3 class="font-black text-rose-900 uppercase text-[10px] tracking-[0.2em] mb-3">Control de Sesión</h3>
-           <p class="text-[11px] text-rose-600/70 font-bold mb-8 leading-relaxed">¿Ha terminado su actividad comercial?<br>Cierre su sesión de forma segura.</p>
-           
-           <button @mousedown.stop="auth.logout()" class="w-full h-14 bg-white border-2 border-rose-200 text-rose-600 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all shadow-sm group cursor-pointer">
-              <span class="pointer-events-none flex items-center gap-3">
-                Cerrar Sesión Ahora
-                <Icon icon="mdi:arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </span>
-           </button>
-        </div>
-      </div>
     </div>
   </div>
 
