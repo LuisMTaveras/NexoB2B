@@ -85,3 +85,47 @@ export function requireCustomerUser(req: Request, res: Response, next: NextFunct
   if (req.user.type !== 'customer') return sendForbidden(res, 'Customer users only');
   next();
 }
+
+/**
+ * Robust Permission Checker (Modular RBAC)
+ * Atomic permissions e.g. 'orders:print'
+ * ADMIN bypass included (God Mode)
+ */
+export function requirePermission(permissionCode: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return sendUnauthorized(res);
+    
+    // Only internal users have granular RBAC permissions in this system
+    if (req.user.type !== 'internal') return sendForbidden(res, 'Access restricted to internal staff');
+
+    // Super Admin Bypass (God Mode)
+    // The user 1 / root admin always has the ADMIN role name
+    if (req.user.role === 'ADMIN') return next();
+
+    const { prisma } = require('../lib/prisma');
+    
+    // Fetch user permissions from DB (cached/optimized check)
+    const user = await prisma.internalUser.findUnique({
+      where: { id: req.user.userId },
+      include: {
+        role: {
+          include: {
+            permissions: {
+              include: { permission: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!user || !user.role) return sendForbidden(res, 'Role not assigned');
+
+    const hasPermission = user.role.permissions.some(rp => rp.permission.code === permissionCode);
+
+    if (!hasPermission) {
+      return sendForbidden(res, `Missing required permission: ${permissionCode}`);
+    }
+
+    next();
+  };
+}

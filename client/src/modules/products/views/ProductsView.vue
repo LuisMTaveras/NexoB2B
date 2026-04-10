@@ -99,7 +99,7 @@
           v-for="product in products" 
           :key="product.id"
           class="group bg-white/70 backdrop-blur-xl border border-white/90 rounded-3xl p-4 flex flex-col shadow-[0_8px_30px_-15px_rgba(0,0,0,0.06)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)] hover:border-indigo-100 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden"
-          :class="!product.isVisible ? 'opacity-70 grayscale-[30%]' : ''"
+          :class="!product.isVisible ? 'opacity-70 grayscale-30' : ''"
         >
           <!-- Visibility Badge & Switch -->
           <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
@@ -172,6 +172,7 @@
           </div>
         </div>
       </div>
+
     </div>
 
     <!-- Infinite Scroll Sentinel -->

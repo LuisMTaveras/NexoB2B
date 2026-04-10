@@ -245,7 +245,7 @@ async function validate() {
   }
 
   try {
-    const res = await api.get(`/customers/setup-password/validate/${token}`)
+    const res = await api.get(`/auth/invitation/verify/${token}`)
     userData.value = res.data.data
   } catch (err: any) {
     error.value = err.response?.data?.error || 'No pudimos verificar esta invitación. Contacta con soporte.'
@@ -269,7 +269,7 @@ async function submitPassword() {
   submitting.value = true
 
   try {
-    await api.post('/customers/setup-password', {
+    await api.post('/auth/invitation/setup', {
       token,
       password: password.value
     })

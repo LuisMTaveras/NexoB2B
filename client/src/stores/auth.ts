@@ -8,9 +8,10 @@ export interface AuthUser {
   firstName: string
   lastName: string
   email: string
-  role: string
+  role: string // This will now hold roleName
   type: 'internal' | 'customer'
   customerId?: string
+  permissions?: string[]
 }
 
 export interface AuthCompany {
@@ -45,7 +46,16 @@ export const useAuthStore = defineStore('auth', () => {
       const { data } = await api.post('/auth/login', { email, password })
       setTokens(data.data.accessToken)
       company.value = data.data.company
-      const target = data.data.user.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
+      
+      // Map user with proper role string and granular permissions
+      const userData = data.data.user
+      user.value = {
+        ...userData,
+        role: userData.role?.name || 'USER',
+        permissions: userData.role?.permissions?.map((p: any) => p.permission.code) || []
+      }
+      
+      const target = userData.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
       router.push(target)
     } finally {
       loading.value = false
@@ -65,7 +75,16 @@ export const useAuthStore = defineStore('auth', () => {
       const { data } = await api.post('/auth/register', payload)
       setTokens(data.data.accessToken)
       company.value = data.data.company
-      const target = data.data.user.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
+      
+      // Map user with proper role string and granular permissions
+      const userData = data.data.user
+      user.value = {
+        ...userData,
+        role: userData.role?.name || 'ADMIN',
+        permissions: userData.role?.permissions?.map((p: any) => p.permission.code) || []
+      }
+      
+      const target = userData.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
       router.push(target)
     } finally {
       loading.value = false
@@ -76,8 +95,16 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return
     try {
       const { data } = await api.get('/auth/me')
-      user.value = data.data
-      company.value = data.data.company
+      
+      // Map user with proper role string and granular permissions
+      const userData = data.data
+      user.value = {
+        ...userData,
+        role: userData.role?.name || 'USER',
+        permissions: userData.role?.permissions?.map((p: any) => p.permission.code) || []
+      }
+      
+      company.value = userData.company
     } catch {
       logout()
     }
@@ -120,6 +147,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Universal Permission Checker (Frontend)
+   * Super Admins (ADMIN role) always return true
+   */
+  function hasPermission(code: string): boolean {
+    if (!user.value) return false
+    
+    // Internal God Mode Bypass
+    if (user.value.type === 'internal' && user.value.role === 'ADMIN') return true
+    
+    // Customers (for now) don't have granular permissions
+    if (user.value.type === 'customer') return true
+
+    // Check atomic permission match
+    return user.value.permissions?.includes(code) || false
+  }
+
   return {
     token,
     user,
@@ -133,5 +177,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     updateProfile,
     changePassword,
+    hasPermission,
   }
 })

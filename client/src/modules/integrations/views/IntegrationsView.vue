@@ -118,32 +118,35 @@
           </span>
         </div>
 
-        <!-- Last job status -->
+        <!-- Recent Activity per resource -->
         <div v-if="integration.syncJobs?.length" class="border-t border-[var(--color-brand-100)] pt-3">
-          <div v-for="lastJob in integration.syncJobs.slice(0, 1)" :key="lastJob.id" class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold text-[var(--color-brand-500)] uppercase tracking-tight">Actividad Reciente:</span>
-              <Icon icon="mdi:information-outline" class="w-3.5 h-3.5 text-[var(--color-brand-300)] cursor-help" title="Muestra el estado del último proceso de sincronización ejecutado." />
-            </div>
-            <div class="flex items-center gap-3 text-xs">
-              <span class="badge" :class="getStatusConfig(lastJob.status).badge">
-                <Icon 
-                  :icon="getStatusConfig(lastJob.status).icon" 
-                  :class="[getStatusConfig(lastJob.status).animate, 'mr-1']" 
-                  class="w-3.5 h-3.5" 
-                />
-                {{ lastJob.status }}
-              </span>
-              <span class="text-[var(--color-brand-500)] font-medium">
-                <span class="text-emerald-600">✓ {{ lastJob.recordsOk }}</span>
-                <span v-if="lastJob.recordsFailed > 0" class="text-rose-500 ml-2">
-                   ❌ {{ lastJob.recordsFailed }}
-                </span>
-              </span>
-              <button class="text-[var(--color-accent-500)] font-bold hover:text-[var(--color-accent-700)] transition-colors" @click="openLogsModal(integration, lastJob)">
-                Ver logs
-              </button>
-            </div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-[10px] font-bold text-[var(--color-brand-500)] uppercase tracking-widest flex items-center gap-1">
+              <Icon icon="mdi:history" class="w-3.5 h-3.5" />
+              Estado por Recurso:
+            </span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <template v-for="job in getLatestJobsPerResource(integration)" :key="job?.id">
+              <div 
+                v-if="job"
+                class="flex items-center justify-between p-2 rounded-xl bg-[var(--color-brand-50)] border border-[var(--color-brand-100)] hover:border-[var(--color-accent-200)] transition-colors group cursor-pointer"
+                @click="job && openLogsModal(integration, job)"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <Icon :icon="RESOURCE_ICONS[job.resource as SyncResource]" class="w-3.5 h-3.5 text-[var(--color-brand-400)] shrink-0" />
+                  <span class="text-[10px] font-semibold text-[var(--color-brand-700)] truncate">{{ RESOURCE_LABELS[job.resource as SyncResource].split(' ')[0] }}</span>
+                </div>
+                <div class="flex items-center gap-1">
+                   <Icon 
+                    :icon="getStatusConfig(job.status).icon" 
+                    :class="[getStatusConfig(job.status).color, getStatusConfig(job.status).animate]" 
+                    class="w-3 h-3 shrink-0" 
+                  />
+                  <span class="text-[9px] font-black text-[var(--color-accent-600)] opacity-0 group-hover:opacity-100 transition-opacity">LOGS</span>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
         <div v-else class="border-t border-[var(--color-brand-100)] pt-3 text-center">
@@ -420,7 +423,7 @@
                       <!-- Tooltip flotante -->
                       <div class="absolute bottom-full right-0 mb-2 w-72 p-3 bg-slate-800 text-white rounded-lg shadow-xl invisible opacity-0 translate-y-2 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 text-left transition-all pointer-events-none">
                         <strong class="text-[var(--color-accent-300)] block mb-1">Valores y Formatos Soportados:</strong>
-                        <ul class="space-y-1">
+                        <ul class="space-y-1" v-pre>
                           <li>• <span class="font-mono text-emerald-300">campo.id</span> : Ruta JSON</li>
                           <li>• <span class="font-mono text-emerald-300">=VALOR</span> : Texto estático (Fijo)</li>
                           <li>• <span class="font-mono text-emerald-300">{{nombre}} - {{pais}}</span> : Plantilla interpolada</li>
@@ -1038,12 +1041,28 @@ const getStatusConfig = (status: string | null | undefined) => {
 }
 
 const getResourceStatus = (integration: Integration, resource: SyncResource) => {
-  if (!integration.syncJobs) return null
-  const jobs = integration.syncJobs
-    .filter(j => j.resource === resource)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const jobs = getLatestJobsPerResource(integration)
+  const job = jobs.find(j => j && j.resource === resource)
+  return job?.status ?? null
+}
+
+const getLatestJobsPerResource = (integration: Integration): SyncJob[] => {
+  if (!integration.syncJobs) return []
   
-  return jobs[0]?.status ?? null
+  const latest: Record<string, SyncJob> = {}
+  const sorted = [...integration.syncJobs].sort((a, b) => 
+    new Date(b.createdAt as string).getTime() - new Date(a.createdAt as string).getTime()
+  )
+  
+  for (const job of sorted) {
+    if (!latest[job.resource]) {
+      latest[job.resource] = job
+    }
+  }
+  
+  return ALL_RESOURCES
+    .map(r => latest[r])
+    .filter((job): job is SyncJob => job !== undefined)
 }
 
 onMounted(load)

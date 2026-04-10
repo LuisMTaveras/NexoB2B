@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { prisma } from '../../lib/prisma';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { sendSuccess, sendCreated } from '../../utils/apiResponse';
 import * as authService from './auth.service';
@@ -87,4 +88,15 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   });
 
   return sendSuccess(res, null, 'Password changed successfully');
+});
+export const verifyInvitation = asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.params;
+  const result = await authService.verifyInvitation(token);
+  return sendSuccess(res, result);
+});
+
+export const setupAccount = asyncHandler(async (req: Request, res: Response) => {
+  const { token, password } = req.body;
+  const result = await authService.setupInvitationAccount(token, password);
+  return sendSuccess(res, result, 'Cuenta activada exitosamente');
 });

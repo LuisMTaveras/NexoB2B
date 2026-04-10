@@ -57,6 +57,7 @@ enum SyncResource {
   INVOICES
   RECEIVABLES
   ORDERS
+  SMART_BASKET
 }
 
 enum CustomerStatus {
@@ -133,6 +134,7 @@ model Company {
   orders        Order[]
   tickets       Ticket[]
   auditLogs     AuditLog[]
+  smartBasketConfig SmartBasketConfig?
 }
 
 model CompanyBranding {
@@ -148,6 +150,45 @@ model CompanyBranding {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
+// ─── RBAC (Roles & Permissions) ──────────────────────────────────
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., "orders:view", "orders:print"
+  name        String
+  description String?
+  module      String   // e.g., "ORDERS", "INTEGRATIONS"
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  companyId   String?  // null for System Roles (global)
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       InternalUser[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
 // ─── Internal Users ──────────────────────────────────────────────
 
 model InternalUser {
@@ -157,17 +198,20 @@ model InternalUser {
   lastName     String
   email        String       @unique
   passwordHash String
-  role         InternalRole @default(OPERATOR)
-  status       UserStatus   @default(ACTIVE)
-  lastLoginAt  DateTime?
-  lastActiveAt DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
   company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  roleId          String?      // New dynamic role
+  role            Role?        @relation(fields: [roleId], references: [id])
+  legacyRole      InternalRole @default(OPERATOR) // To be removed after migration
+  status          UserStatus   @default(ACTIVE)
+  lastLoginAt     DateTime?
+  lastActiveAt    DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
   auditLogs       AuditLog[]
   emailConfig     EmailConfig?
   assignedTickets Ticket[]     @relation("AssignedTo")
+  tokens          VerificationToken[] @relation("InternalTokens")
 
   @@index([companyId])
   @@index([email])
@@ -300,6 +344,7 @@ model Customer {
   receivables     AccountReceivable[]
   orders          Order[]
   tickets         Ticket[]
+  smartBasketSuggestions SmartBasketSuggestion[]
 
   @@unique([companyId, externalId])
   @@unique([companyId, internalCode])
@@ -333,15 +378,18 @@ model CustomerUser {
 
 model VerificationToken {
   id        String   @id @default(cuid())
-  userId    String
+  userId    String?
   token     String   @unique
   type      String // INVITATION, PASSWORD_RESET
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user CustomerUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     CustomerUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  internalUser InternalUser? @relation("InternalTokens", fields: [internalUserId], references: [id], onDelete: Cascade)
+  internalUserId String?
 
   @@index([userId])
+  @@index([internalUserId])
 }
 
 // ─── Products & Pricing ──────────────────────────────────────────
@@ -368,6 +416,7 @@ model Product {
   company        Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
   priceSnapshots ProductPriceSnapshot[]
   orderItems     OrderItem[]
+  smartBasketSuggestions SmartBasketSuggestion[]
 
   @@unique([companyId, sku])
   @@unique([companyId, internalCode])
@@ -565,4 +614,45 @@ model TicketMessage {
   ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
+}
+
+// ─── Smart Basket ────────────────────────────────────────────────
+
+model SmartBasketConfig {
+  id             String      @id @default(cuid())
+  companyId      String      @unique
+  isActive       Boolean     @default(false)
+  frequency      String      @default("24h")    // 12h, 24h, 48h, manual
+  executionHour  String      @default("02:00")
+  historyWindow  Int         @default(180)      // 90, 120, 180
+  minScore       Int         @default(50)
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  lastRunStatus  SyncStatus?
+  lastRunError   String?
+  processedCount Int         @default(0)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model SmartBasketSuggestion {
+  id                String   @id @default(cuid())
+  customerId        String
+  productId         String
+  smartScore        Int
+  suggestedQuantity Decimal  @db.Decimal(18, 4)
+  urgency           String   // "vencido", "proximo", "sugerido"
+  patternText       String?  // e.g. "Compras cada ~7 días · Último: hace 8 días"
+  lastPurchaseDate  DateTime?
+  averageInterval   Float?
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
 }

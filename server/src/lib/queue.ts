@@ -2,6 +2,7 @@ import { PgBoss } from 'pg-boss';
 import { logger } from './logger';
 
 export const QUEUE_NAME = 'integration-sync';
+export const SMART_BASKET_QUEUE = 'smart-basket';
 
 export interface SyncJobPayload {
   integrationId: string;
@@ -9,6 +10,11 @@ export interface SyncJobPayload {
   mappingId: string;
   syncJobId?: string; // Internal Prisma record ID
   resource: string;
+  triggeredBy: 'manual' | 'scheduler';
+}
+
+export interface SmartBasketJobPayload {
+  companyId: string;
   triggeredBy: 'manual' | 'scheduler';
 }
 
@@ -30,9 +36,10 @@ export async function getQueue(): Promise<PgBoss> {
   // We can use the 'wip' event or similar if needed, or just remove for now if it causes issues.
   
   await boss.start();
-  // Ensure the queue exists before workers try to subscribe
+  // Ensure the queues exist
   await boss.createQueue(QUEUE_NAME);
-  logger.info(`[Queue] pg-boss started and connected. Queue "${QUEUE_NAME}" ensured.`);
+  await boss.createQueue(SMART_BASKET_QUEUE);
+  logger.info(`[Queue] pg-boss started. Queues "${QUEUE_NAME}" and "${SMART_BASKET_QUEUE}" ensured.`);
 
   return boss;
 }
@@ -86,4 +93,30 @@ export async function stopQueue(): Promise<void> {
     boss = null;
     logger.info('[Queue] pg-boss stopped');
   }
+}
+
+export async function scheduleSmartBasketCron(
+  companyId: string,
+  cron: string,
+  payload: SmartBasketJobPayload,
+): Promise<void> {
+  const queue = await getQueue();
+  await queue.schedule(SMART_BASKET_QUEUE, cron, payload, {
+    tz: 'America/Santo_Domingo',
+    key: `sb-${companyId}`,
+  });
+  logger.info(`[Queue] Smart Basket schedule registered key="sb-${companyId}" cron="${cron}"`);
+}
+
+export async function unscheduleSmartBasketCron(companyId: string): Promise<void> {
+  const queue = await getQueue();
+  await queue.unschedule(SMART_BASKET_QUEUE, `sb-${companyId}`);
+  logger.info(`[Queue] Smart Basket schedule removed: key="sb-${companyId}"`);
+}
+
+export async function enqueueSmartBasket(payload: SmartBasketJobPayload): Promise<string | null> {
+  const queue = await getQueue();
+  const jobId = await queue.send(SMART_BASKET_QUEUE, payload);
+  logger.info(`[Queue] Enqueued manual Smart Basket job ${jobId} for company ${payload.companyId}`);
+  return jobId;
 }

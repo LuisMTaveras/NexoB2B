@@ -5,26 +5,34 @@ const prisma = new PrismaClient();
 async function run() {
   console.log('--- Verificación de Base de Datos ---');
   
-  // 1. Verificar columnas en IntegrationMapping
-  const columns = await prisma.$queryRawUnsafe(`
-    SELECT column_name, data_type 
-    FROM information_schema.columns 
-    WHERE table_name = 'IntegrationMapping' 
-    AND column_name IN ('isScheduled', 'syncCron', 'syncInterval', 'nextRunAt');
-  `);
-  console.log('Columnas encontradas en IntegrationMapping:', columns);
+  // 1. Roles
+  const rolesCount = await prisma.role.count();
+  console.log('Total roles:', rolesCount);
+  if (rolesCount > 0) {
+    const roles = await prisma.role.findMany({ select: { name: true, isSystem: true, companyId: true } });
+    console.log('Roles:', roles);
+  }
 
-  // 2. Verificar esquemas en la DB
-  const schemas = await prisma.$queryRawUnsafe(`
-    SELECT schema_name FROM information_schema.schemata;
-  `);
-  console.log('Esquemas detectados:', schemas.map(s => s.schema_name).filter(s => !s.startsWith('pg_')));
+  // 2. Users (Internal)
+  const usersCount = await prisma.internalUser.count();
+  console.log('Total Internal Users:', usersCount);
+  if (usersCount > 0) {
+    const users = await prisma.internalUser.findMany({ 
+      select: { email: true, status: true, role: { select: { name: true } } } 
+    });
+    console.log('Users:', users);
+  }
 
-  // 3. Verificar tablas de pgboss
-  const pgbossTables = await prisma.$queryRawUnsafe(`
-    SELECT table_name FROM information_schema.tables WHERE table_schema = 'pgboss';
-  `);
-  console.log('Tablas de pg-boss (pgboss schema):', pgbossTables.map(t => t.table_name));
+  // 3. Pending Invitations
+  const tokens = await prisma.verificationToken.count({ where: { type: 'INVITATION' } });
+  console.log('Total Pending Invitations:', tokens);
+  if (tokens > 0) {
+    const results = await prisma.verificationToken.findMany({
+      where: { type: 'INVITATION' },
+      include: { internalUser: { select: { email: true } } }
+    });
+    console.log('Invitation details:', results.map(t => ({ email: t.internalUser?.email, expiresAt: t.expiresAt })));
+  }
 
   await prisma.$disconnect();
 }

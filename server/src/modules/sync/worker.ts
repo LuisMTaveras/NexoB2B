@@ -1,6 +1,7 @@
-import { getQueue, QUEUE_NAME, SyncJobPayload } from '../../lib/queue';
+import { getQueue, QUEUE_NAME, SMART_BASKET_QUEUE, SyncJobPayload, SmartBasketJobPayload } from '../../lib/queue';
 import { prisma } from '../../lib/prisma';
 import { runSyncJob } from './sync.service';
+import { SmartBasketService } from '../portal/smartBasket.service';
 import { logger } from '../../lib/logger';
 
 const WORKER_CONCURRENCY = 3; // max simultaneous sync jobs
@@ -56,6 +57,25 @@ export async function startSyncWorker(): Promise<void> {
         } catch (err: any) {
           logger.error(`[Worker] Sync job ${job.id} failed: ${err.message}`);
           throw err; // Re-throw so pg-boss knows to retry
+        }
+      }));
+    }
+  );
+
+  // Smart Basket Worker
+  await queue.work(
+    SMART_BASKET_QUEUE,
+    { batchSize: 1, localConcurrency: 1 },
+    async (jobs) => {
+      await Promise.all(jobs.map(async (job: any) => {
+        const { companyId } = job.data as SmartBasketJobPayload;
+        logger.info(`[Worker] Processing Smart Basket job for company ${companyId}`);
+        try {
+          await SmartBasketService.calculateForAll(companyId);
+          logger.info(`[Worker] Completed Smart Basket job for company ${companyId}`);
+        } catch (err: any) {
+          logger.error(`[Worker] Smart Basket job failed: ${err.message}`);
+          throw err;
         }
       }));
     }

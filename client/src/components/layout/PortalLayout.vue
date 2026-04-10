@@ -1,9 +1,9 @@
 <template>
-  <div class="min-h-screen flex flex-col bg-[var(--color-brand-50)]/30 font-sans">
+  <div class="min-h-screen flex flex-col bg-(--color-brand-50)/30 font-sans">
     <!-- Top E-commerce Navigation -->
-    <header class="bg-white/70 backdrop-blur-2xl border-b border-[var(--color-brand-100)] shadow-[0_10px_30px_-15px_rgba(15,23,42,0.1)] sticky top-0 z-30">
+    <header class="bg-white/70 backdrop-blur-2xl border-b border-(--color-brand-100) shadow-[0_10px_30px_-15px_rgba(15,23,42,0.1)] sticky top-0 z-30">
       <!-- Topmost small strip (Optional: for Balance/Agent) -->
-      <div class="bg-[var(--color-brand-900)] text-white/80 text-[10px] uppercase tracking-widest py-1.5 px-4 sm:px-8 flex justify-between items-center font-bold">
+      <div class="bg-(--color-brand-900) text-white/80 text-[10px] uppercase tracking-widest py-1.5 px-4 sm:px-8 flex justify-between items-center font-bold">
         <div class="flex items-center gap-2">
            <Icon icon="mdi:headset" class="w-3.5 h-3.5" />
            <span>Ejecutivo de Cuenta: Portal</span>
@@ -18,13 +18,13 @@
       <div class="px-4 sm:px-8 h-20 flex items-center justify-between gap-6 relative">
         <!-- Logo -->
         <div class="flex items-center gap-4 z-10 shrink-0">
-           <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-[var(--color-accent-400)] to-[var(--color-accent-600)] flex items-center justify-center shadow-md border border-[var(--color-accent-400)]/50 overflow-hidden ring-4 ring-white">
-             <img v-if="auth.company?.logo" :src="auth.company.logo" class="w-full h-full object-cover" />
-             <span v-else class="text-white font-black text-xl">N</span>
+           <div class="w-12 h-12 rounded-2xl bg-linear-to-br from-accent-400 to-accent-600 flex items-center justify-center shadow-md border border-accent-400/50 overflow-hidden ring-4 ring-white">
+              <img v-if="auth.company?.logo" :src="auth.company.logo" class="w-full h-full object-cover" />
+              <span v-else class="text-white font-black text-xl">N</span>
            </div>
            <div>
-             <p class="text-[var(--color-brand-900)] font-black text-xl leading-none tracking-tight">{{ auth.company?.name || 'NexoB2B Store' }}</p>
-             <p class="text-[var(--color-accent-600)] text-[9px] uppercase font-black tracking-widest mt-1">Corporate E-Commerce</p>
+              <p class="text-(--color-brand-900) font-black text-xl leading-none tracking-tight">{{ auth.company?.name || 'NexoB2B Store' }}</p>
+              <p class="text-accent-600 text-[9px] uppercase font-black tracking-widest mt-1">Corporate E-Commerce</p>
            </div>
         </div>
 
@@ -34,8 +34,8 @@
             v-for="item in navItems"
             :key="item.to"
             :to="item.to"
-            class="px-4 py-2.5 rounded-full text-[13px] font-bold text-[var(--color-brand-600)] hover:text-[var(--color-accent-600)] hover:bg-[var(--color-accent-50)]/50 transition-all group flex items-center gap-2 border border-transparent"
-            active-class="!text-[var(--color-accent-600)] bg-[var(--color-accent-50)] !border-[var(--color-accent-100)] shadow-sm shadow-[var(--color-accent-100)]/50"
+            class="px-4 py-2.5 rounded-full text-[13px] font-bold text-(--color-brand-600) hover:text-accent-600 hover:bg-(--color-accent-50)/50 transition-all group flex items-center gap-2 border border-transparent"
+            active-class="!text-accent-600 bg-(--color-accent-50) !border-(--color-accent-100) shadow-sm shadow-[var(--color-accent-100)]/50"
           >
             <Icon :icon="item.icon" class="w-4 h-4 opacity-70 group-hover:scale-110 transition-transform" />
             <span class="tracking-tight">{{ item.label }}</span>
@@ -47,16 +47,16 @@
            <div class="relative">
              <button
                 @click="userMenuOpen = !userMenuOpen"
-                class="flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full bg-white/60 hover:bg-white border border-transparent hover:border-[var(--color-brand-200)]/50 transition-all font-medium group ring-2 ring-transparent focus:ring-[var(--color-accent-100)]"
+                class="flex items-center gap-3 pl-2 pr-4 py-1.5 rounded-full bg-white/60 hover:bg-white border border-transparent hover:border-(--color-brand-200)/50 transition-all font-medium group ring-2 ring-transparent focus:ring-accent-100"
              >
-                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-accent-100)] to-[var(--color-accent-200)] flex items-center justify-center text-[var(--color-accent-700)] text-xs font-bold border border-[var(--color-accent-300)] shadow-sm border-2 border-white group-hover:scale-105 transition-transform">
+                <div class="w-8 h-8 rounded-full bg-linear-to-br from-accent-100 to-(--color-accent-200) flex items-center justify-center text-(--color-accent-700) text-xs font-bold border-white border-2 shadow-sm group-hover:scale-105 transition-transform">
                   {{ initials }}
                 </div>
                 <div class="text-left hidden sm:block">
-                  <p class="text-xs font-semibold text-[var(--color-brand-900)] leading-tight group-hover:text-[var(--color-accent-600)] transition-colors uppercase tracking-tight">{{ auth.fullName }}</p>
-                  <p class="text-[10px] text-[var(--color-brand-500)] font-bold tracking-widest uppercase mt-0.5">{{ auth.user?.role === 'ADMIN' ? 'Administrador' : 'Comprador' }}</p>
+                  <p class="text-xs font-semibold text-(--color-brand-900) leading-tight group-hover:text-accent-600 transition-colors uppercase tracking-tight">{{ auth.fullName }}</p>
+                  <p class="text-[10px] text-(--color-brand-500) font-bold tracking-widest uppercase mt-0.5">{{ auth.user?.role === 'ADMIN' ? 'Administrador' : 'Comprador' }}</p>
                 </div>
-                <Icon icon="mdi:chevron-down" class="w-4 h-4 text-[var(--color-brand-400)] group-hover:text-[var(--color-brand-800)] transition-transform duration-300" :class="{ 'rotate-180': userMenuOpen }" />
+                <Icon icon="mdi:chevron-down" class="w-4 h-4 text-(--color-brand-400) group-hover:text-(--color-brand-800) transition-transform duration-300" :class="{ 'rotate-180': userMenuOpen }" />
              </button>
 
               <!-- Dropdown -->
@@ -68,11 +68,11 @@
                 leave-from-class="transform scale-100 opacity-100 translate-y-0"
                 leave-to-class="transform scale-95 opacity-0 translate-y-2"
               >
-                <div v-if="userMenuOpen" class="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(15,23,42,0.15)] border border-[var(--color-brand-200)]/80 py-2 z-50">
-                  <div class="px-5 py-4 border-b border-[var(--color-brand-100)]">
-                    <p class="text-[10px] font-black uppercase text-[var(--color-accent-600)] tracking-widest mb-1">Mi Cuenta</p>
-                    <p class="text-sm font-semibold text-[var(--color-brand-900)] truncate tracking-tight">{{ auth.fullName }}</p>
-                    <p class="text-[11px] font-medium text-[var(--color-brand-500)] truncate">{{ auth.user?.email }}</p>
+                <div v-if="userMenuOpen" class="absolute right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_-10px_rgba(15,23,42,0.15)] border border-(--color-brand-200)/80 py-2 z-50">
+                  <div class="px-5 py-4 border-b border-(--color-brand-100)">
+                    <p class="text-[10px] font-black uppercase text-accent-600 tracking-widest mb-1">Mi Cuenta</p>
+                    <p class="text-sm font-semibold text-(--color-brand-900) truncate tracking-tight">{{ auth.fullName }}</p>
+                    <p class="text-[11px] font-medium text-(--color-brand-500) truncate">{{ auth.user?.email }}</p>
                   </div>
                   <div class="py-2 px-2">
                     <button @click.stop.prevent="handleLogout" class="w-full text-left px-4 py-2.5 rounded-xl text-[13px] text-red-600 hover:bg-red-50 flex items-center gap-3 font-semibold transition-colors group">
@@ -86,7 +86,7 @@
               </Transition>
            </div>
            
-           <button class="lg:hidden p-2.5 text-[var(--color-brand-600)] bg-white/60 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-[var(--color-brand-200)]/50" @click="mobileMenuOpen = !mobileMenuOpen">
+           <button class="lg:hidden p-2.5 text-(--color-brand-600) bg-white/60 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-(--color-brand-200)/50" @click="mobileMenuOpen = !mobileMenuOpen">
               <Icon :icon="mobileMenuOpen ? 'mdi:close' : 'mdi:menu'" class="w-6 h-6" />
            </button>
         </div>
@@ -101,17 +101,17 @@
         leave-from-class="opacity-100 translate-y-0"
         leave-to-class="opacity-0 -translate-y-4"
       >
-        <div v-if="mobileMenuOpen" class="lg:hidden border-t border-[var(--color-brand-100)] bg-white/95 backdrop-blur-xl absolute w-full left-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] z-40">
+        <div v-if="mobileMenuOpen" class="lg:hidden border-t border-(--color-brand-100) bg-white/95 backdrop-blur-xl absolute w-full left-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] z-40">
            <nav class="flex flex-col p-4 space-y-2">
               <RouterLink
                 v-for="item in navItems"
                 :key="item.to"
                 :to="item.to"
                 @click="mobileMenuOpen = false"
-                class="flex items-center gap-3 px-5 py-4 rounded-xl text-[13px] font-semibold text-[var(--color-brand-700)] hover:text-[var(--color-accent-600)] hover:bg-[var(--color-accent-50)] transition-all border border-transparent"
-                active-class="!text-[var(--color-accent-600)] bg-[var(--color-accent-50)] border-[var(--color-accent-100)] shadow-sm"
+                class="flex items-center gap-3 px-5 py-4 rounded-xl text-[13px] font-semibold text-(--color-brand-700) hover:text-accent-600 hover:bg-(--color-accent-50) transition-all border border-transparent"
+                active-class="!text-accent-600 bg-(--color-accent-50) border-(--color-accent-100) shadow-sm"
               >
-                <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.02)] border border-[var(--color-brand-100)] shrink-0">
+                <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.02)] border border-(--color-brand-100) shrink-0">
                   <Icon :icon="item.icon" class="w-4 h-4 opacity-70" />
                 </div>
                 {{ item.label }}

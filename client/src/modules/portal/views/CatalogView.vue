@@ -34,6 +34,13 @@
       </div>
     </div>
 
+    <!-- Smart Basket Section -->
+    <SmartBasket 
+      v-if="selectedCategory === 'Todos' && !search" 
+      @add="addToCart" 
+      @add-all="addAllToCart" 
+    />
+
     <!-- Filters -->
     <div class="flex flex-wrap gap-2 mb-8">
       <button 
@@ -220,6 +227,7 @@ import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { useUiStore } from '@/stores/ui'
+import SmartBasket from '../components/SmartBasket.vue'
 
 const ui = useUiStore()
 
@@ -301,6 +309,20 @@ const updateQty = (id: string, delta: number) => {
 
 const removeFromCart = (id: string) => {
   cartItems.value = cartItems.value.filter(i => i.id !== id)
+}
+
+const addAllToCart = (suggestions: any[]) => {
+  suggestions.forEach(s => {
+    const existing = cartItems.value.find(i => i.id === s.id)
+    const qty = Math.ceil(s.suggestedQuantity || 1)
+    if (existing) {
+      existing.quantity = Math.max(existing.quantity, qty)
+    } else {
+      cartItems.value.push({ ...s, quantity: qty })
+    }
+  })
+  showCart.value = true
+  ui.alert('Smart Basket', `${suggestions.length} productos añadidos basándose en tus patrones de compra.`, 'success')
 }
 
 const submitOrder = async () => {

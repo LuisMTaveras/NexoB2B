@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { scheduleCronSync, unscheduleCronSync, SyncJobPayload } from './queue';
+import { scheduleCronSync, unscheduleCronSync, SyncJobPayload, scheduleSmartBasketCron, unscheduleSmartBasketCron } from './queue';
 import { logger } from './logger';
 
 /**
@@ -39,7 +39,26 @@ export async function loadSchedules(): Promise<void> {
     }
   }
 
-  logger.info('[Scheduler] All schedules loaded');
+  logger.info('[Scheduler] Integration schedules loaded');
+
+  // Load Smart Basket schedules
+  const sbScheduled = await prisma.smartBasketConfig.findMany({
+    where: { isActive: true, frequency: { not: 'manual' } }
+  });
+
+  for (const config of sbScheduled) {
+    const cron = configToCron(config.frequency, config.executionHour);
+    await scheduleSmartBasketCron(config.companyId, cron, { companyId: config.companyId, triggeredBy: 'scheduler' });
+  }
+
+  logger.info(`[Scheduler] ${sbScheduled.length} Smart Basket schedules loaded`);
+}
+
+function configToCron(frequency: string, executionHour: string): string {
+  const [hour, minute] = executionHour.split(':').map(Number);
+  if (frequency === '12h') return `${minute} ${hour},${(hour + 12) % 24} * * *`;
+  if (frequency === '48h') return `${minute} ${hour} */2 * *`;
+  return `${minute} ${hour} * * *`; // Default 24h
 }
 
 /**
@@ -83,4 +102,15 @@ export async function removeMappingSchedule(mappingId: string): Promise<void> {
   } catch {
     // Schedule may not have existed — safe to ignore
   }
+}
+
+export async function upsertSmartBasketSchedule(companyId: string): Promise<void> {
+  const config = await prisma.smartBasketConfig.findUnique({ where: { companyId } });
+  if (!config || !config.isActive || config.frequency === 'manual') {
+    await unscheduleSmartBasketCron(companyId);
+    return;
+  }
+
+  const cron = configToCron(config.frequency, config.executionHour);
+  await scheduleSmartBasketCron(companyId, cron, { companyId, triggeredBy: 'scheduler' });
 }

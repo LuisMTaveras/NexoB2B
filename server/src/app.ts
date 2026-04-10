@@ -21,6 +21,8 @@ import supportRoutes from './modules/support/support.routes';
 import ordersRoutes from './modules/orders/orders.routes';
 import portalRoutes from './modules/portal/portal.routes';
 import auditRoutes from './modules/audit/audit.routes';
+import companyUsersRoutes from './modules/company-users/company-users.routes';
+import rolesRoutes from './modules/roles/roles.routes';
 
 
 
@@ -74,6 +76,8 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/admin/audit-logs', auditRoutes);
+app.use('/api/company-users', companyUsersRoutes);
+app.use('/api/roles', rolesRoutes);
 
 
 

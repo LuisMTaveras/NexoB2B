@@ -171,7 +171,7 @@
                     <Icon icon="mdi:lock-alert-outline" class="w-5 h-5" />
                   </div>
                   <div>
-                    <p class="text-xs font-black text-amber-700 tracking-tight uppercase tracking-widest">Aprobación Requerida</p>
+                    <h5 class="text-xs font-black text-amber-700 uppercase tracking-widest">{{ form.role === 'ADMIN' ? 'Administrador B2B' : 'Comprador Autorizado' }}</h5>
                     <p class="text-[10px] text-amber-600 font-medium">Los Compradores siempre necesitan autorización de un administrador.</p>
                   </div>
                </div>

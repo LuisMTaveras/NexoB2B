@@ -12,14 +12,14 @@
     "dev:client": "npm run dev -w client",
     "dev:server": "npm run dev -w server",
     "build": "npm run build -w client && npm run build -w server",
-    "db:migrate": "cd prisma && npx prisma migrate dev",
-    "db:seed": "cd prisma && npx prisma db seed",
-    "db:studio": "cd prisma && npx prisma studio"
+    "db:migrate": "npx prisma migrate dev",
+    "db:seed": "npx prisma db seed",
+    "db:studio": "npx prisma studio"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
   },
   "prisma": {
-    "seed": "npx ts-node prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts"
   }
 }

@@ -82,7 +82,7 @@ router.get('/', asyncHandler(async (req, res) => {
     where: { companyId: req.companyId! },
     include: {
       mappings: true,
-      syncJobs: { orderBy: { createdAt: 'desc' }, take: 1 },
+      syncJobs: { orderBy: { createdAt: 'desc' }, take: 15 },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -108,7 +108,7 @@ router.post('/', asyncHandler(async (req, res) => {
     userAgent: req.headers['user-agent'],
     details: { 
       name: integration.name,
-      type: integration.type,
+      authMethod: integration.authMethod,
       newData: integration
     }
   });
@@ -122,7 +122,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
     where: { id: req.params.id, companyId: req.companyId! },
     include: {
       mappings: true,
-      syncJobs: { orderBy: { createdAt: 'desc' }, take: 5 },
+      syncJobs: { orderBy: { createdAt: 'desc' }, take: 15 },
     },
   });
   if (!integration) return sendNotFound(res, 'Integration not found');
@@ -253,6 +253,10 @@ router.post('/:id/mappings', asyncHandler(async (req, res) => {
 
   const data = createMappingSchema.parse(req.body);
 
+  const existingMapping = await prisma.integrationMapping.findUnique({
+    where: { integrationId_resource: { integrationId: req.params.id, resource: data.resource } }
+  });
+
   const mapping = await prisma.integrationMapping.upsert({
     where: { integrationId_resource: { integrationId: req.params.id, resource: data.resource } },
     create: {
@@ -277,25 +281,27 @@ router.post('/:id/mappings', asyncHandler(async (req, res) => {
     },
   });
 
-  // Register or update cron schedule in pg-boss
-  await upsertMappingSchedule(mapping.id);
-
-  // Audit mapping update/save
-  await logAction({
-    companyId: req.companyId!,
-    userId: req.user!.userId,
-    userEmail: req.user!.email,
-    action: 'INTEGRATION_MAPPING_SAVED',
-    resource: 'IntegrationMapping',
-    resourceId: mapping.id,
-    ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    details: { 
-      resource: mapping.resource,
-      oldData: existing,
-      newData: mapping
-    }
-  });
+  // Background actions (Scheduler & Audit)
+  try {
+    await upsertMappingSchedule(mapping.id);
+    await logAction({
+      companyId: req.companyId!,
+      userId: req.user!.userId,
+      userEmail: req.user!.email,
+      action: 'INTEGRATION_MAPPING_SAVED',
+      resource: 'IntegrationMapping',
+      resourceId: mapping.id,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: { 
+        resource: mapping.resource,
+        oldData: existingMapping,
+        newData: mapping
+      }
+    });
+  } catch (err: any) {
+    console.error(`[Integrations] Failed to schedule or audit mapping save for ${mapping.id}: ${err.message}`);
+  }
 
   return sendCreated(res, mapping, 'Mapping saved');
 }));
@@ -315,8 +321,34 @@ router.patch('/:id/mappings/:mappingId', asyncHandler(async (req, res) => {
       ...(req.body.paginationConfig && { paginationConfig: req.body.paginationConfig }),
       ...(req.body.queryParams && { queryParams: req.body.queryParams }),
       ...(req.body.isActive !== undefined && { isActive: req.body.isActive }),
+      ...(req.body.isScheduled !== undefined && { isScheduled: req.body.isScheduled }),
+      ...(req.body.syncCron && { syncCron: req.body.syncCron }),
+      ...(req.body.syncInterval && { syncInterval: req.body.syncInterval }),
     },
   });
+
+  // Background actions (Scheduler & Audit)
+  try {
+    await upsertMappingSchedule(updated.id);
+    await logAction({
+      companyId: req.companyId!,
+      userId: req.user!.userId,
+      userEmail: req.user!.email,
+      action: 'INTEGRATION_MAPPING_SAVED',
+      resource: 'IntegrationMapping',
+      resourceId: updated.id,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: { 
+        resource: updated.resource,
+        oldData: mapping,
+        newData: updated
+      }
+    });
+  } catch (err: any) {
+    console.error(`[Integrations] Failed to schedule or audit mapping update for ${updated.id}: ${err.message}`);
+  }
+
   return sendSuccess(res, updated, 'Mapping updated');
 }));
 
@@ -372,10 +404,9 @@ router.post('/:id/sync', asyncHandler(async (req, res) => {
     return sendError(res, `No active mapping found for resource: ${resource}. Configure a mapping first.`, 400);
   }
 
-  // Register PENDING jobs in Prisma immediately so UI shows them as 'Activos Ahora' / 'Pending'
+  // Register PENDING jobs in Prisma immediately
   const queueJobIds: (string | null)[] = [];
   for (const mapping of mappingsToSync) {
-    // 1. Create the persistent record in our DB
     const syncJob = await prisma.integrationSyncJob.create({
       data: {
         integrationId: integration.id,
@@ -385,7 +416,6 @@ router.post('/:id/sync', asyncHandler(async (req, res) => {
       }
     });
 
-    // 2. Enqueue in pg-boss, passing our internal syncJob.id
     const queueJobId = await enqueueSync({
       integrationId: integration.id,
       companyId: req.companyId!,
@@ -497,10 +527,10 @@ router.post('/:id/smart/suggest', asyncHandler(async (req, res) => {
   );
 
   // 1. Fetch small sample
-  const response = await client.request({
+  const response = await client.getHttp().request({
     method: 'GET',
     url: endpoint,
-    params: { limit: 1, $top: 1, top: 1 } // try common limit params
+    params: { limit: 1, $top: 1, top: 1 }
   });
 
   // Extract keys from the first object found
@@ -509,7 +539,6 @@ router.post('/:id/smart/suggest', asyncHandler(async (req, res) => {
   
   if (Array.isArray(data) && data.length > 0) sampleObj = data[0];
   else if (data && typeof data === 'object') {
-     // Check for common data wrappers
      const possibleArrays = Object.values(data).find(v => Array.isArray(v));
      if (Array.isArray(possibleArrays) && possibleArrays.length > 0) sampleObj = possibleArrays[0];
      else sampleObj = data;
@@ -521,11 +550,8 @@ router.post('/:id/smart/suggest', asyncHandler(async (req, res) => {
   const internalFields = SCHEMA_FIELDS[resource]!;
   const suggestedMappings: Record<string, string> = {};
 
-  // Simple similarity matching
   internalFields.forEach(field => {
     const fieldLower = field.toLowerCase();
-    
-    // Find best match in erpKeys
     const match = erpKeys.find(key => {
       const keyLower = key.toLowerCase();
       return keyLower === fieldLower || 
@@ -534,7 +560,6 @@ router.post('/:id/smart/suggest', asyncHandler(async (req, res) => {
              (fieldLower === 'id' && keyLower === 'code') ||
              (fieldLower === 'sku' && keyLower === 'itemcode');
     });
-
     if (match) suggestedMappings[field] = match;
   });
 

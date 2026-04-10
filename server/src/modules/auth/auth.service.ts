@@ -21,6 +21,13 @@ export async function registerCompany(data: RegisterDto) {
 
   const hashedPassword = await bcrypt.hash(data.password, env.BCRYPT_ROUNDS);
 
+  // Get the global ADMIN role
+  const adminRole = await prisma.role.findFirst({
+    where: { companyId: null, name: 'ADMIN' },
+  });
+
+  if (!adminRole) throw new AppError('System Roles not initialized. Please run seed.', 500);
+
   const company = await prisma.company.create({
     data: {
       name: data.companyName,
@@ -32,12 +39,12 @@ export async function registerCompany(data: RegisterDto) {
           lastName: data.lastName,
           email: data.email,
           passwordHash: hashedPassword,
-          role: 'ADMIN',
+          roleId: adminRole.id,
           status: 'ACTIVE',
         },
       },
     },
-    include: { internalUsers: true },
+    include: { internalUsers: { include: { role: true } } },
   });
 
   const user = company.internalUsers[0];
@@ -45,7 +52,7 @@ export async function registerCompany(data: RegisterDto) {
     userId: user.id,
     companyId: company.id,
     email: user.email,
-    role: user.role,
+    role: user.role?.name || 'ADMIN',
     type: 'internal',
   });
 
@@ -59,7 +66,7 @@ export async function login(data: LoginDto) {
   // 1. Try Internal User
   let internalUser = await prisma.internalUser.findUnique({
     where: { email },
-    include: { company: true },
+    include: { company: true, role: true },
   });
 
   if (internalUser) {
@@ -73,7 +80,7 @@ export async function login(data: LoginDto) {
       userId: internalUser.id,
       companyId: internalUser.companyId,
       email: internalUser.email,
-      role: internalUser.role,
+      role: internalUser.role?.name || 'ADMIN',
       type: 'internal',
     });
 
@@ -128,11 +135,26 @@ export async function getMe(userId: string, type: 'internal' | 'customer') {
     const user = await prisma.internalUser.findUnique({
       where: { id: userId },
       select: {
-        id: true, firstName: true, lastName: true, email: true, role: true, status: true,
+        id: true, firstName: true, lastName: true, email: true, status: true,
+        role: {
+          include: {
+            permissions: { include: { permission: true } }
+          }
+        },
         company: { select: { id: true, name: true, slug: true, logo: true, status: true } },
       },
     });
-    return user ? { ...user, type: 'internal' } : null;
+    
+    if (!user) return null;
+
+    const permissions = user.role?.permissions.map(p => p.permission.code) || [];
+
+    return { 
+      ...user, 
+      type: 'internal',
+      roleName: user.role?.name || 'NONE',
+      permissions 
+    };
   }
 
   const customerUser = await prisma.customerUser.findUnique({
@@ -154,7 +176,8 @@ export async function getMe(userId: string, type: 'internal' | 'customer') {
     role: customerUser.role,
     status: customerUser.status,
     type: 'customer',
-    company: customerUser.customer.company
+    company: customerUser.customer.company,
+    permissions: [] // Currently customers don't have granular permissions
   };
 }
 
@@ -198,6 +221,75 @@ export async function updatePassword(userId: string, data: UpdatePasswordDto) {
     where: { id: userId },
     data: { passwordHash: hashedNewPassword },
   });
+
+  return { success: true };
+}
+export async function verifyInvitation(token: string) {
+  const vToken = await prisma.verificationToken.findUnique({
+    where: { token },
+    include: {
+      user: { include: { customer: { include: { company: true } } } },
+      internalUser: { include: { company: true } }
+    }
+  });
+
+  if (!vToken) throw new AppError('Token de invitación inválido o expirado', 404);
+  if (vToken.expiresAt < new Date()) {
+    throw new AppError('El enlace de invitación ha expirado', 400);
+  }
+
+  const user = vToken.internalUser || vToken.user;
+  if (!user) throw new AppError('Usuario asociado al token no encontrado', 404);
+
+  const company = vToken.internalUser ? vToken.internalUser.company : vToken.user?.customer.company;
+
+  return {
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    company: {
+      id: company?.id,
+      name: company?.name,
+      logo: company?.logo
+    },
+    type: vToken.internalUserId ? 'internal' : 'customer'
+  };
+}
+
+export async function setupInvitationAccount(token: string, password: string) {
+  const vToken = await prisma.verificationToken.findUnique({
+    where: { token },
+    include: {
+      user: true,
+      internalUser: true
+    }
+  });
+
+  if (!vToken) throw new AppError('Token de invitación no válido', 404);
+  if (vToken.expiresAt < new Date()) throw new AppError('El enlace ha expirado', 400);
+
+  const hashedPassword = await bcrypt.hash(password, env.BCRYPT_ROUNDS);
+
+  if (vToken.internalUserId) {
+    await prisma.internalUser.update({
+      where: { id: vToken.internalUserId },
+      data: {
+        passwordHash: hashedPassword,
+        status: 'ACTIVE'
+      }
+    });
+  } else if (vToken.userId) {
+    await prisma.customerUser.update({
+      where: { id: vToken.userId },
+      data: {
+        passwordHash: hashedPassword,
+        status: 'ACTIVE'
+      }
+    });
+  }
+
+  // Delete the token
+  await prisma.verificationToken.delete({ where: { token } });
 
   return { success: true };
 }

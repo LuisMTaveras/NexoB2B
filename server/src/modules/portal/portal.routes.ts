@@ -8,6 +8,7 @@ import { logAction } from '../../lib/audit';
 import { logger } from '../../lib/logger';
 import { EmailService } from '../../lib/email.service';
 import { PdfService } from '../../lib/pdf.service';
+import { SmartBasketService } from './smartBasket.service';
 
 const router = Router();
 
@@ -469,19 +470,20 @@ router.patch('/orders/:id/approve', asyncHandler(async (req, res) => {
   });
 
   // Notificar al comprador de la aprobación
-  if (order.submittedBy?.email) {
+  const submittedBy = order.submittedBy;
+  if (submittedBy?.email) {
     (async () => {
       try {
         const mailer = await EmailService.getCompanyTransporter(req.companyId!);
         if (mailer) {
           await mailer.transporter.sendMail({
             from: mailer.from,
-            to: order.submittedBy.email,
+            to: submittedBy.email,
             subject: `✅ Tu pedido ${order.number} ha sido aprobado`,
             html: EmailService.getOrderStatusTemplate({
               companyName: 'Portal B2B',
               orderNumber: order.number,
-              customerName: order.submittedBy.firstName,
+              customerName: submittedBy.firstName,
               newStatus: 'Aprobado (Abierto)',
               total: order.total.toString(),
               currency: order.currency
@@ -552,19 +554,20 @@ router.patch('/orders/:id/reject', asyncHandler(async (req, res) => {
   });
 
   // Notificar al comprador del rechazo
-  if (order.submittedBy?.email) {
+  const rejectedTo = order.submittedBy;
+  if (rejectedTo?.email) {
     (async () => {
       try {
         const mailer = await EmailService.getCompanyTransporter(req.companyId!);
         if (mailer) {
           await mailer.transporter.sendMail({
             from: mailer.from,
-            to: order.submittedBy.email,
+            to: rejectedTo.email,
             subject: `🚫 Tu pedido ${order.number} ha sido rechazado`,
             html: EmailService.getOrderStatusTemplate({
               companyName: 'Portal B2B',
               orderNumber: order.number,
-              customerName: order.submittedBy.firstName,
+              customerName: rejectedTo.firstName,
               newStatus: 'Rechazado',
               total: order.total.toString(),
               currency: order.currency
@@ -673,6 +676,50 @@ router.get('/invoices/:id/pdf', asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename=Factura_${invoice.number}.pdf`);
   return res.send(pdfBuffer);
+}));
+
+/**
+ * GET /api/portal/smart-basket
+ * Returns suggested products for the current customer
+ */
+router.get('/smart-basket', asyncHandler(async (req, res) => {
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true, customer: { include: { priceAssignment: true } } }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const suggestions = await SmartBasketService.getBasket(customerUser.customerId);
+  const assignedPriceList = customerUser.customer.priceAssignment?.priceListId || 'LISTA_1';
+
+  // Format suggestions with pricing
+  const result = suggestions.map((s: any) => {
+    const p = s.product;
+    let priceInfo = p.priceSnapshots.find((ps: any) => ps.priceListId === assignedPriceList);
+    if (!priceInfo && assignedPriceList !== 'LISTA_1') {
+      priceInfo = p.priceSnapshots.find((ps: any) => ps.priceListId === 'LISTA_1');
+    }
+
+    return {
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      imageUrl: p.imageUrl,
+      category: p.category,
+      unit: p.unit,
+      stock: p.stock,
+      price: priceInfo?.price || 0,
+      currency: priceInfo?.currency || 'DOP',
+      smartScore: s.smartScore,
+      suggestedQuantity: s.suggestedQuantity,
+      urgency: s.urgency,
+      patternText: s.patternText,
+      lastPurchaseDate: s.lastPurchaseDate
+    };
+  });
+
+  return sendSuccess(res, result);
 }));
 
 export default router;

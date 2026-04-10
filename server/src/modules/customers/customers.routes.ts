@@ -4,10 +4,6 @@ import * as CustomerController from './customers.controller';
 
 const router = Router();
 
-// Public routes for onboarding
-router.get('/setup-password/validate/:token', CustomerController.validateToken);
-router.post('/setup-password', CustomerController.setupPassword);
-
 // Protected management routes
 router.get('/', authenticate, CustomerController.listCustomers);
 router.get('/me/team', authenticate, CustomerController.listMyTeam); // Get own team (Portal)

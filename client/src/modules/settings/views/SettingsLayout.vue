@@ -11,35 +11,17 @@
 
     <!-- Liquid Frost Tabs Navigation -->
     <div class="mb-8 p-1.5 bg-white/50 backdrop-blur-md rounded-[1.5rem] border border-white/80 shadow-sm inline-flex flex-wrap gap-2">
-      <RouterLink
-        to="/admin/settings/company"
-        class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300"
-        active-class="bg-white text-indigo-600 shadow-[0_4px_15px_-5px_rgba(99,102,241,0.2)] border border-white"
-        :class="$route.path.includes('/company') ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'"
-      >
-        <Icon icon="mdi:office-building-outline" class="w-5 h-5" />
-        Mi Empresa
-      </RouterLink>
-
-      <RouterLink
-        to="/admin/settings/integrations"
-        class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300"
-        active-class="bg-white text-emerald-600 shadow-[0_4px_15px_-5px_rgba(16,185,129,0.2)] border border-white"
-        :class="$route.path.includes('/integrations') ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'"
-      >
-        <Icon icon="mdi:api" class="w-5 h-5" />
-        Integraciones ERP
-      </RouterLink>
-
-      <RouterLink
-        to="/admin/settings/email"
-        class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300"
-        active-class="bg-white text-amber-600 shadow-[0_4px_15px_-5px_rgba(245,158,11,0.2)] border border-white"
-        :class="$route.path.includes('/email') ? 'text-amber-600' : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'"
-      >
-        <Icon icon="mdi:email-outline" class="w-5 h-5" />
-        Email SMTP
-      </RouterLink>
+      <template v-for="tab in filteredTabs" :key="tab.to">
+        <RouterLink
+          :to="tab.to"
+          class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300"
+          :active-class="`bg-white ${tab.activeColor} shadow-[0_4px_15px_-5px_rgba(99,102,241,0.2)] border border-white`"
+          :class="$route.path.includes(tab.pathMatch) ? tab.activeColor : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'"
+        >
+          <Icon :icon="tab.icon" class="w-5 h-5 flex-shrink-0" />
+          {{ tab.label }}
+        </RouterLink>
+      </template>
     </div>
 
     <!-- Active Tab Content Container -->
@@ -55,7 +37,24 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+
+const tabs = [
+  { to: '/admin/settings/company',      icon: 'mdi:office-building-outline', label: 'Mi Empresa',       permission: 'settings:view',   activeColor: 'text-indigo-600', pathMatch: '/company'      },
+  { to: '/admin/settings/integrations',icon: 'mdi:api',                    label: 'Integraciones ERP', permission: 'integrations:view', activeColor: 'text-emerald-600', pathMatch: '/integrations' },
+  { to: '/admin/settings/email',       icon: 'mdi:email-outline',           label: 'Email SMTP',        permission: 'settings:manage',   activeColor: 'text-amber-600',   pathMatch: '/email'        },
+  { to: '/admin/settings/team',        icon: 'mdi:account-group-outline',  label: 'Mi Equipo',        permission: 'team:view',         activeColor: 'text-rose-600',    pathMatch: '/team'         },
+  { to: '/admin/settings/roles',       icon: 'mdi:shield-key-outline',      label: 'Roles y Permisos',  permission: 'role:manage',       activeColor: 'text-violet-600',  pathMatch: '/roles'        },
+  { to: '/admin/settings/smart-basket', icon: 'mdi:brain',                 label: 'Smart Basket',      permission: 'settings:manage',   activeColor: 'text-indigo-600',  pathMatch: '/smart-basket' },
+]
+
+const filteredTabs = computed(() => {
+  return tabs.filter(tab => auth.hasPermission(tab.permission))
+})
 </script>
 
 <style scoped>

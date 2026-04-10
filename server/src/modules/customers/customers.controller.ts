@@ -63,7 +63,7 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
 
   try {
     const { customerId } = req.params;
-    const { email, firstName, lastName, role, requiresApproval } = req.body;
+    const { email, firstName, lastName, role, requiresApproval, orderLimit } = req.body;
     const userPayload = (req as any).user;
     
     // DEBUG LOG
@@ -160,7 +160,7 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
     createdTokenId = vToken.id;
 
     // Send Email
-    const setupUrl = `${env.CLIENT_URL}/setup-password?token=${token}`;
+    const setupUrl = `${env.CLIENT_URL}/setup-account?token=${token}`;
     
     try {
       await EmailService.sendUserEmail(senderId, {
@@ -230,7 +230,7 @@ export const validateToken = async (req: Request, res: Response, next: NextFunct
       }
     });
 
-    if (!vToken || vToken.expiresAt < new Date()) {
+    if (!vToken || !vToken.user || vToken.expiresAt < new Date()) {
       return res.status(400).json({ success: false, error: 'El enlace ha expirado o no es válido' });
     }
 
@@ -257,7 +257,7 @@ export const setupPassword = async (req: Request, res: Response, next: NextFunct
       include: { user: true }
     });
 
-    if (!vToken || vToken.expiresAt < new Date()) {
+    if (!vToken || !vToken.userId || vToken.expiresAt < new Date()) {
       return res.status(400).json({ success: false, error: 'El enlace ha expirado o no es válido' });
     }
 
@@ -265,7 +265,7 @@ export const setupPassword = async (req: Request, res: Response, next: NextFunct
 
     await prisma.$transaction([
       prisma.customerUser.update({
-        where: { id: vToken.userId },
+        where: { id: vToken.userId! },
         data: { passwordHash, status: 'ACTIVE' }
       }),
       prisma.verificationToken.delete({ where: { id: vToken.id } })
