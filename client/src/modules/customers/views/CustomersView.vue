@@ -223,7 +223,10 @@
                       </div>
                       <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-start">
-                          <p class="text-[13px] font-bold text-[var(--color-brand-900)] group-hover/userCard:text-indigo-600 transition-colors truncate leading-tight pr-2">{{ user.firstName }} {{ user.lastName }}</p>
+                          <div class="flex items-center gap-2 pr-2">
+                             <div v-if="isUserOnline(user.lastActiveAt)" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.5)] shrink-0" title="En línea"></div>
+                             <p class="text-[13px] font-bold text-[var(--color-brand-900)] group-hover/userCard:text-indigo-600 transition-colors truncate leading-tight">{{ user.firstName }} {{ user.lastName }}</p>
+                          </div>
                           <span class="shrink-0 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border" :class="getUserStatusClass(user.status)">
                              {{ formatUserStatus(user.status) }}
                           </span>
@@ -593,6 +596,11 @@ function formatUserStatus(status: string) {
     case 'INVITED': return 'Invitado'
     default: return status
   }
+}
+
+function isUserOnline(lastActiveAt: string | undefined) {
+  if (!lastActiveAt) return false
+  return (new Date().getTime() - new Date(lastActiveAt).getTime()) < 120000 // 2 minutes
 }
 
 function formatShortTime(d: string) {

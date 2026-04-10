@@ -6,9 +6,17 @@
         <p class="text-sm text-slate-500 mt-1">Consulta tus facturas y el detalle de tus pagos.</p>
       </div>
       <div class="flex items-center gap-3">
-        <button class="btn btn-secondary flex items-center gap-2">
-          <Icon icon="mdi:file-pdf-box" class="w-5 h-5 text-rose-500" />
-          <span class="text-xs font-black uppercase">Descargar PDF</span>
+        <button @click="fetchData" class="btn bg-white border-slate-200 text-slate-600 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-50 transition-colors">
+          <Icon icon="mdi:refresh" :class="{'animate-spin': loading}" />
+          Actualizar
+        </button>
+        <button @click="exportCsv" class="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-4 py-2 rounded-xl flex items-center gap-2 transition-colors">
+          <Icon icon="mdi:microsoft-excel" class="w-5 h-5" />
+          <span class="text-xs font-black uppercase">Exportar CSV</span>
+        </button>
+        <button @click="downloadStatement" :disabled="generatingPdf" class="btn btn-secondary flex items-center gap-2">
+          <Icon :icon="generatingPdf ? 'mdi:loading' : 'mdi:file-pdf-box'" :class="{'animate-spin': generatingPdf}" class="w-5 h-5 text-rose-500" />
+          <span class="text-xs font-black uppercase">{{ generatingPdf ? 'Generando...' : 'Reporte Consolidado' }}</span>
         </button>
       </div>
     </div>
@@ -29,8 +37,28 @@
       </div>
       <div class="card p-5 bg-slate-900 text-white border-none shadow-lg">
         <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Limite de Crédito</p>
-        <p class="text-xl font-black tracking-tighter">RD$ 500,000</p>
+        <p class="text-xl font-black tracking-tighter">{{ formatCurrency(creditLimit) }}</p>
       </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="mb-4 flex flex-wrap items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+      <div class="relative flex-1 min-w-[180px]">
+        <Icon icon="mdi:magnify" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input v-model="search" type="text" placeholder="Buscar factura #..." 
+               class="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 transition-all" />
+      </div>
+      <select v-model="statusFilter" class="pl-4 pr-10 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer">
+        <option value="ALL">Todos los estados</option>
+        <option value="PAID">Pagado</option>
+        <option value="PENDING">Pendiente</option>
+        <option value="OVERDUE">Vencida</option>
+      </select>
+      <select v-model="dateFilter" class="pl-4 pr-10 py-2 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer">
+        <option value="all">Historico</option>
+        <option value="this-month">Este mes</option>
+        <option value="last-30">Últimos 30 días</option>
+      </select>
     </div>
 
     <!-- Invoices Table -->
@@ -52,13 +80,19 @@
                  <td colspan="5" class="px-6 py-4 h-12 bg-slate-50/50"></td>
               </tr>
             </template>
-            <tr v-else-if="!invoices.length">
-               <td colspan="5" class="px-6 py-12 text-center text-slate-400"> No se encontraron facturas. </td>
+            <tr v-else-if="!filteredInvoices.length">
+               <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+                 <div class="flex flex-col items-center gap-2">
+                   <Icon icon="mdi:file-search-outline" class="w-10 h-10 opacity-20" />
+                   <p class="text-sm font-medium">No se encontraron facturas con estos filtros.</p>
+                   <button @click="resetFilters" class="text-indigo-600 text-[11px] font-bold uppercase underline">Limpiar Filtros</button>
+                 </div>
+               </td>
             </tr>
-            <tr v-for="inv in invoices" :key="inv.id" class="hover:bg-slate-50 transition-colors group">
+            <tr v-for="inv in filteredInvoices" :key="inv.id" class="hover:bg-slate-50 transition-colors group">
               <td class="px-6 py-4">
                 <div class="flex items-center gap-3">
-                   <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                   <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center transition-colors group-hover:bg-indigo-100">
                       <Icon icon="mdi:file-document-outline" class="w-4 h-4" />
                    </div>
                    <span class="text-xs font-bold text-slate-900">{{ inv.number }}</span>
@@ -79,11 +113,11 @@
                   @click="downloadInvoice(inv)"
                   :disabled="downloading === inv.id"
                   class="p-2 hover:bg-white rounded-lg text-slate-400 hover:text-indigo-600 transition-colors border border-transparent hover:border-slate-200"
+                  title="Descargar Factura"
                  >
                     <Icon :icon="downloading === inv.id ? 'mdi:loading' : 'mdi:download-outline'" :class="{'animate-spin': downloading === inv.id}" class="w-4 h-4" />
                  </button>
               </td>
-
             </tr>
           </tbody>
         </table>
@@ -96,20 +130,62 @@
 import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
+import { formatCurrency, formatDate } from '@/utils/formatters'
+import type { Invoice } from '@/types/portal'
 
-const invoices = ref<any[]>([])
+const invoices = ref<Invoice[]>([])
 const loading = ref(true)
+const creditLimit = ref(0)
 const downloading = ref<string | null>(null)
+const generatingPdf = ref(false)
 
+// Filters
+const search = ref('')
+const statusFilter = ref('ALL')
+const dateFilter = ref('all')
+
+const resetFilters = () => {
+  search.value = ''
+  statusFilter.value = 'ALL'
+  dateFilter.value = 'all'
+}
 
 const totalInvoiced = computed(() => invoices.value.reduce((s, i) => s + Number(i.total), 0))
 const totalPaid = computed(() => invoices.value.filter(i => i.status === 'PAID').reduce((s, i) => s + Number(i.total), 0))
 const totalPending = computed(() => invoices.value.filter(i => i.status !== 'PAID').reduce((s, i) => s + Number(i.total), 0))
 
+const filteredInvoices = computed(() => {
+  return invoices.value.filter(inv => {
+    // 1. Search
+    const matchesSearch = !search.value || inv.number.toLowerCase().includes(search.value.toLowerCase())
+    
+    // 2. Status
+    const matchesStatus = statusFilter.value === 'ALL' || inv.status === statusFilter.value
+    
+    // 3. Date
+    let matchesDate = true
+    if (dateFilter.value !== 'all') {
+      const date = new Date(inv.date)
+      const now = new Date()
+      if (dateFilter.value === 'this-month') {
+        matchesDate = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+      } else if (dateFilter.value === 'last-30') {
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        matchesDate = date >= thirtyDaysAgo
+      }
+    }
+    
+    return matchesSearch && matchesStatus && matchesDate
+  })
+})
+
 const fetchData = async () => {
   try {
+    loading.value = true
     const { data } = await api.get('/portal/invoices')
-    invoices.value = data.data
+    invoices.value = data.data.invoices
+    creditLimit.value = data.data.creditLimit
   } catch (err) {
     console.error('Error loading invoices:', err)
   } finally {
@@ -117,7 +193,43 @@ const fetchData = async () => {
   }
 }
 
-const downloadInvoice = async (inv: any) => {
+const exportCsv = async () => {
+  try {
+    const response = await api.get('/portal/invoices/export', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Facturas_${new Date().getTime()}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (error) {
+    console.error('Error exporting CSV:', error)
+    alert('No se pudo exportar el archivo CSV')
+  }
+}
+
+const downloadStatement = async () => {
+  if (generatingPdf.value) return
+  generatingPdf.value = true
+  try {
+    const response = await api.get('/portal/invoices/statement', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Estado_Cuenta_${new Date().getTime()}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err) {
+    console.error('Error downloading statement:', err)
+    alert('No se pudo generar el reporte. Inténtalo de nuevo.')
+  } finally {
+    generatingPdf.value = false
+  }
+}
+
+const downloadInvoice = async (inv: Invoice) => {
   if (downloading.value) return
   downloading.value = inv.id
   try {
@@ -137,22 +249,13 @@ const downloadInvoice = async (inv: any) => {
   }
 }
 
-
-const formatCurrency = (val: number | string) => {
-  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' }).format(Number(val))
-}
-
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('es-DO', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
 const translateStatus = (status: string) => {
-  const map: any = { PAID: 'Pagado', PENDING: 'Pendiente', OVERDUE: 'Vencida', CANCELLED: 'Anulada' }
+  const map: Record<string, string> = { PAID: 'Pagado', PENDING: 'Pendiente', OVERDUE: 'Vencida', CANCELLED: 'Anulada' }
   return map[status] || status
 }
 
 const getStatusClass = (status: string) => {
-  const map: any = {
+  const map: Record<string, string> = {
     PAID: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
     PENDING: 'bg-amber-100 text-amber-700 border border-amber-200',
     OVERDUE: 'bg-rose-100 text-rose-700 border border-rose-200',

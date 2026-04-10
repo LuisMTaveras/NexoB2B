@@ -55,7 +55,10 @@
                 </div>
                 <h4 class="text-sm font-bold text-slate-800 line-clamp-2 leading-tight h-8 mb-1">{{ item.name }}</h4>
                 <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-2">{{ item.sku }}</p>
-                <p class="text-sm font-black text-indigo-600 tracking-tighter">{{ formatCurrency(item.price) }}</p>
+                <p class="text-sm font-black text-indigo-600 tracking-tighter">
+                  {{ formatCurrency(item.price) }}
+                  <span class="text-[9px] text-slate-400 font-bold uppercase ml-1">/ {{ cleanUnit(item.unit || '') }}</span>
+                </p>
                 <div 
                   class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg border text-[8px] font-bold shadow-sm"
                   :class="item.stock > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'"
@@ -107,14 +110,14 @@
 import { ref, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
+import type { SmartBasketSuggestion } from '@/types/portal'
 
-defineProps<{
-  // We can pass current cart if needed to show "already in cart"
-}>()
+// Recomended products provided by the Smart Basket API
+
 
 const emit = defineEmits(['add', 'addAll'])
 
-const suggestions = ref<any[]>([])
+const suggestions = ref<SmartBasketSuggestion[]>([])
 const loading = ref(true)
 const scrollContainer = ref<HTMLElement | null>(null)
 

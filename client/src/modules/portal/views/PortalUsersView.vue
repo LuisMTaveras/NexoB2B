@@ -75,8 +75,8 @@
             <Icon icon="mdi:shield-account-outline" class="w-3.5 h-3.5" />
             {{ user.role }}
           </div>
-          <div v-if="user.lastLoginAt">
-            Acceso: {{ new Date(user.lastLoginAt).toLocaleDateString() }}
+          <div v-if="user.lastLoginAt" class="lowercase first-letter:uppercase">
+            Acceso: {{ formatRelativeTime(user.lastLoginAt) }}
           </div>
           <div v-else>Pendiente</div>
         </div>
@@ -212,6 +212,8 @@ import { Icon } from '@iconify/vue'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
+import { formatDistanceToNow } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -283,6 +285,15 @@ function getStatusClass(status: string) {
   if (status === 'ACTIVE') return 'bg-emerald-100 text-emerald-700'
   if (status === 'INVITED') return 'bg-amber-100 text-amber-700'
   return 'bg-slate-100 text-slate-700'
+}
+
+function formatRelativeTime(dateString: string) {
+  if (!dateString) return ''
+  try {
+    return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: es })
+  } catch {
+    return new Date(dateString).toLocaleDateString()
+  }
 }
 
 onMounted(loadTeam)

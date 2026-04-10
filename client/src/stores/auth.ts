@@ -11,6 +11,7 @@ export interface AuthUser {
   role: string // This will now hold roleName
   type: 'internal' | 'customer'
   customerId?: string
+  customerName?: string
   permissions?: string[]
 }
 
@@ -51,8 +52,11 @@ export const useAuthStore = defineStore('auth', () => {
       const userData = data.data.user
       user.value = {
         ...userData,
-        role: userData.role?.name || 'USER',
-        permissions: userData.role?.permissions?.map((p: any) => p.permission.code) || []
+        role: userData.type === 'internal' ? (userData.role?.name || 'USER') : (userData.role || 'BUYER'),
+        customerName: userData.customerName,
+        permissions: userData.type === 'internal' 
+          ? (userData.role?.permissions?.map((p: { permission: { code: string } }) => p.permission.code) || [])
+          : []
       }
       
       const target = userData.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
@@ -81,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = {
         ...userData,
         role: userData.role?.name || 'ADMIN',
-        permissions: userData.role?.permissions?.map((p: any) => p.permission.code) || []
+        permissions: userData.role?.permissions?.map((p: { permission: { code: string } }) => p.permission.code) || []
       }
       
       const target = userData.type === 'internal' ? '/admin/dashboard' : '/portal/dashboard'
@@ -100,8 +104,9 @@ export const useAuthStore = defineStore('auth', () => {
       const userData = data.data
       user.value = {
         ...userData,
-        role: userData.role?.name || 'USER',
-        permissions: userData.role?.permissions?.map((p: any) => p.permission.code) || []
+        role: userData.type === 'internal' ? (userData.roleName || 'USER') : (userData.role || 'BUYER'),
+        customerName: userData.customerName,
+        permissions: userData.permissions || []
       }
       
       company.value = userData.company
@@ -110,18 +115,20 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
-    token.value = null
-    user.value = null
-    company.value = null
-    localStorage.removeItem('nexob2b_token')
-    
-    // Force a clean redirect to login and clear any router state
-    if (router) {
-      router.push('/login').catch(() => {
-        window.location.href = '/login'
-      })
-    } else {
+  async function logout() {
+    try {
+      if (token.value) {
+        await api.post('/auth/logout')
+      }
+    } catch (err) {
+      console.error('Logout sync failed', err)
+    } finally {
+      token.value = null
+      user.value = null
+      company.value = null
+      localStorage.removeItem('nexob2b_token')
+      
+      // Direct redirect to clear SPA state entirely
       window.location.href = '/login'
     }
   }

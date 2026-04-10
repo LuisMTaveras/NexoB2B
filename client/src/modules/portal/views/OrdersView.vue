@@ -5,27 +5,59 @@
         <h2 class="text-3xl font-black text-[var(--color-brand-900)] tracking-tight">Mis Pedidos</h2>
         <p class="text-sm font-bold text-[var(--color-brand-500)] mt-1">Sigue el estado de tus compras B2B en tiempo real.</p>
       </div>
-      <button @click="fetchOrders" class="btn bg-white hover:bg-[var(--color-brand-50)] text-[var(--color-brand-600)] border border-[var(--color-brand-200)] shadow-sm px-4 py-2 rounded-xl flex items-center gap-2 transition-colors">
-         <Icon icon="mdi:refresh" :class="{'animate-spin': loading}" />
-         Actualizar
-      </button>
+      <div class="flex items-center gap-3">
+        <button @click="fetchOrders" class="btn bg-white hover:bg-[var(--color-brand-50)] text-[var(--color-brand-600)] border border-[var(--color-brand-200)] shadow-sm px-4 py-2 rounded-xl flex items-center gap-2 transition-colors">
+           <Icon icon="mdi:refresh" :class="{'animate-spin': loading}" />
+           Actualizar
+        </button>
+        <button @click="exportCsv" class="btn bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-4 py-2 rounded-xl flex items-center gap-2 transition-colors">
+           <Icon icon="mdi:microsoft-excel" class="w-5 h-5" />
+           <span class="text-xs font-black uppercase">Exportar CSV</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="mb-8 flex flex-wrap items-center gap-4 bg-white/50 p-4 rounded-2xl border border-[var(--color-brand-100)] backdrop-blur-sm">
+      <div class="relative flex-1 min-w-[200px]">
+        <Icon icon="mdi:search" class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-brand-400)]" />
+        <input v-model="search" type="text" placeholder="Buscar por número o SKU..." 
+               class="w-full pl-10 pr-4 py-2 bg-white border border-[var(--color-brand-100)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-400)] transition-all" />
+      </div>
+      <select v-model="statusFilter" class="pl-4 pr-10 py-2 bg-white border border-[var(--color-brand-100)] rounded-xl text-sm font-bold text-[var(--color-brand-700)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-400)] appearance-none cursor-pointer">
+        <option value="ALL">Todos los estados</option>
+        <option value="PENDING_APPROVAL">Pend. Aprobación</option>
+        <option value="OPEN">Abierto</option>
+        <option value="CONFIRMED">Confirmado</option>
+        <option value="SHIPPED">En Tránsito</option>
+        <option value="DELIVERED">Entregado</option>
+        <option value="CANCELLED">Cancelado</option>
+        <option value="REJECTED">Rechazado</option>
+      </select>
+      <select v-model="dateFilter" class="pl-4 pr-10 py-2 bg-white border border-[var(--color-brand-100)] rounded-xl text-sm font-bold text-[var(--color-brand-700)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-400)] appearance-none cursor-pointer">
+        <option value="all">Cualquier fecha</option>
+        <option value="today">Hoy</option>
+        <option value="week">Esta semana</option>
+        <option value="month">Este mes</option>
+        <option value="quarter">Últimos 3 meses</option>
+      </select>
     </div>
 
     <div v-if="loading" class="flex flex-col gap-4">
        <div v-for="i in 3" :key="i" class="h-24 bg-white/50 animate-pulse rounded-2xl border border-[var(--color-brand-100)]"></div>
     </div>
 
-    <div v-else-if="!orders.length" class="card py-20 flex flex-col items-center text-center bg-white/80 backdrop-blur-xl border border-[var(--color-brand-100)] shadow-sm mt-8">
+    <div v-else-if="!filteredOrders.length" class="card py-20 flex flex-col items-center text-center bg-white/80 backdrop-blur-xl border border-[var(--color-brand-100)] shadow-sm mt-8">
       <div class="w-20 h-20 rounded-full bg-[var(--color-brand-50)] flex items-center justify-center mb-6 border border-[var(--color-brand-100)]">
          <Icon icon="mdi:package-variant-closed" class="w-10 h-10 text-[var(--color-brand-300)]" />
       </div>
-      <h3 class="text-lg font-black text-[var(--color-brand-900)]">Aún no hay pedidos</h3>
-      <p class="text-[13px] font-medium text-[var(--color-brand-500)] max-w-sm mx-auto mt-2 mb-6">Tu historial está vacío. Visita nuestro catálogo para realizar tu primera orden corporativa.</p>
-      <RouterLink to="/portal/catalog" class="btn bg-gradient-to-br from-[var(--color-accent-400)] to-[var(--color-accent-600)] text-white font-black px-6 py-2.5 rounded-xl shadow-lg hover:scale-105 transition-transform border border-[var(--color-accent-400)]/50">Explorar Catálogo</RouterLink>
+      <h3 class="text-lg font-black text-[var(--color-brand-900)]">No se encontraron pedidos</h3>
+      <p class="text-[13px] font-medium text-[var(--color-brand-500)] max-w-sm mx-auto mt-2 mb-6">No hay resultados que coincidan con tus filtros.</p>
+      <button @click="resetFilters" class="btn bg-[var(--color-brand-900)] text-white font-black px-6 py-2.5 rounded-xl">Limpiar Filtros</button>
     </div>
 
     <div v-else class="space-y-4">
-       <div v-for="order in orders" :key="order.id" class="bg-white/80 backdrop-blur-xl rounded-2xl border border-[var(--color-brand-100)] shadow-sm overflow-hidden group hover:border-[var(--color-accent-200)] transition-all">
+       <div v-for="order in filteredOrders" :key="order.id" class="bg-white/80 backdrop-blur-xl rounded-2xl border border-[var(--color-brand-100)] shadow-sm overflow-hidden group hover:border-[var(--color-accent-200)] transition-all">
           <div class="px-6 py-5 flex flex-wrap items-center justify-between gap-4 cursor-pointer" @click="toggleOrder(order.id)">
              <div class="flex items-center gap-5">
                <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border" :class="getStatusIconClass(order.status)">
@@ -141,6 +173,11 @@
                      Reportar Problema
                    </RouterLink>
 
+                   <RouterLink :to="`/portal/orders/${order.id}`" class="btn bg-white border border-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-50 text-[10px] uppercase tracking-widest">
+                       <Icon icon="mdi:eye-outline" class="w-4 h-4" />
+                       Ver Detalle Completo
+                    </RouterLink>
+
                    <button 
                      @click.stop="downloadProforma(order)"
                      :disabled="downloading === order.id"
@@ -218,47 +255,73 @@ import { RouterLink } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
+import { formatCurrency, formatDate } from '@/utils/formatters'
+import type { Order } from '@/types/portal'
 
 const auth = useAuthStore()
 const isAdmin = computed(() => auth.user?.role === 'ADMIN')
 
-interface OrderItem {
-  id: string
-  name: string
-  sku: string
-  quantity: number | string
-  unitPrice: number | string
-  total: number | string
-}
-
-interface Order {
-  id: string
-  number: string
-  date: string
-  status: string
-  total: number | string
-  currency: string
-  notes?: string
-  items?: OrderItem[]
-  rejectedReason?: string
-  approvedAt?: string
-  submittedBy?: { firstName: string; lastName: string; email?: string }
-  approvedBy?: { firstName: string; lastName: string; email?: string }
-}
-
-const orders = ref<Order[]>([])
-const loading = ref(true)
-const expandedOrder = ref<string | null>(null)
-const reordering = ref<string | null>(null)
-const approving = ref<string | null>(null)
-const downloading = ref<string | null>(null)
+const rejectTarget = ref<Order | null>(null)
+const rejectReason = ref('')
 const rejecting = ref(false)
 const showRejectModal = ref(false)
+
+const loading = ref(false)
+const orders = ref<Order[]>([])
+const expandedOrder = ref<string | null>(null)
+const approving = ref<string | null>(null)
+const downloading = ref<string | null>(null)
+const reordering = ref<string | null>(null)
+
 const showSuccessModal = ref(false)
 const successTitle = ref('')
 const successMessage = ref('')
-const rejectTarget = ref<Order | null>(null)
-const rejectReason = ref('')
+
+// Filters
+const search = ref('')
+const statusFilter = ref('ALL')
+const dateFilter = ref('all')
+
+const resetFilters = () => {
+  search.value = ''
+  statusFilter.value = 'ALL'
+  dateFilter.value = 'all'
+}
+
+const filteredOrders = computed(() => {
+  return orders.value.filter(o => {
+    // 1. Search
+    const cleanSearch = search.value.toLowerCase().trim()
+    const matchesSearch = !cleanSearch || 
+      o.number.toLowerCase().includes(cleanSearch) || 
+      o.items?.some(item => item.name.toLowerCase().includes(cleanSearch) || item.sku.toLowerCase().includes(cleanSearch))
+
+    // 2. Status
+    const matchesStatus = statusFilter.value === 'ALL' || o.status === statusFilter.value
+
+    // 3. Date
+    let matchesDate = true
+    if (dateFilter.value !== 'all') {
+      const orderDate = new Date(o.date)
+      const now = new Date()
+      if (dateFilter.value === 'today') {
+        matchesDate = orderDate.toDateString() === now.toDateString()
+      } else if (dateFilter.value === 'week') {
+        const lastWeek = new Date()
+        lastWeek.setDate(lastWeek.getDate() - 7)
+        matchesDate = orderDate >= lastWeek
+      } else if (dateFilter.value === 'month') {
+        matchesDate = orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()
+      } else if (dateFilter.value === 'quarter') {
+        const quarterAgo = new Date()
+        quarterAgo.setMonth(quarterAgo.getMonth() - 3)
+        matchesDate = orderDate >= quarterAgo
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDate
+  })
+})
 
 const fetchOrders = async () => {
   loading.value = true
@@ -269,6 +332,22 @@ const fetchOrders = async () => {
     console.error('Error fetching orders:', error)
   } finally {
     loading.value = false
+  }
+}
+
+const exportCsv = async () => {
+  try {
+    const response = await api.get('/portal/orders/export', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `Pedidos_${new Date().getTime()}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (error) {
+    console.error('Error exporting CSV:', error)
+    alert('No se pudo exportar el archivo CSV')
   }
 }
 
@@ -350,19 +429,6 @@ const reorderOrder = async (order: Order) => {
   } finally {
     reordering.value = null
   }
-}
-
-
-const formatDate = (dateStr: string) => {
-  if (!dateStr) return ''
-  return new Intl.DateTimeFormat('es-DO', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  }).format(new Date(dateStr))
-}
-
-const formatCurrency = (val: number | string) => {
-  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' }).format(Number(val))
 }
 
 const getStatusIcon = (status: string) => {

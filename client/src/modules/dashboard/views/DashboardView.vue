@@ -85,7 +85,7 @@
         </div>
 
         <div class="mt-8 pt-6 border-t border-slate-100 relative z-10 flex items-center justify-between">
-           <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Refresh cada 30s</p>
+           <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Sincronizado en tiempo real</p>
            <button @click="fetchOnlineUsers" class="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all border border-slate-200">
               <Icon icon="mdi:refresh" :class="{ 'animate-spin': onlineLoading }" class="text-slate-500" />
            </button>
@@ -178,10 +178,38 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const today = new Date().toLocaleDateString('es-DO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 const loading = ref(true)
 const onlineLoading = ref(false)
-const onlineUsers = ref<any[]>([])
+interface OnlineUser {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  clientName: string
+  type: 'internal' | 'customer'
+}
+
+interface AtRiskCustomer {
+  id: string
+  name: string
+  daysInactive: number
+}
+
+interface ERPHealth {
+  id: string
+  name: string
+  type: string
+  isDown: boolean
+  lastSync: string | null
+}
+
+interface InsightsType {
+  atRiskCustomers: AtRiskCustomer[]
+  erpHealth: ERPHealth[]
+}
+
+const onlineUsers = ref<OnlineUser[]>([])
 const syncHealth = ref({ successRate: 0, totalRecords: 0 })
-const insights = ref<any>(null)
-let refreshTimer: any = null
+const insights = ref<InsightsType | null>(null)
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const stats = ref([
   { label: 'Clientes Activos', value: '0', icon: 'mdi:account-multiple', color: '#2563EB', bg: '#EFF6FF' },
@@ -224,8 +252,8 @@ const fetchDashboardData = async () => {
     insights.value = res.insights
 
     chartDataSyncVolume.value = {
-      labels: res.charts.syncHealth.dailyVolumes.map((v: any) => new Date(v.date).toLocaleDateString('es-DO', { weekday: 'short' })),
-      datasets: [{ ...chartDataSyncVolume.value.datasets[0], data: res.charts.syncHealth.dailyVolumes.map((v: any) => v.count) } as any]
+      labels: res.charts.syncHealth.dailyVolumes.map((v: { date: string, count: number }) => new Date(v.date).toLocaleDateString('es-DO', { weekday: 'short' })),
+      datasets: [{ ...chartDataSyncVolume.value.datasets[0], data: res.charts.syncHealth.dailyVolumes.map((v: { count: number }) => v.count) } as { label: string, data: number[], backgroundColor: string, borderRadius: number }]
     }
   } catch (err) {
     console.error('Failed to fetch stats', err)
@@ -249,7 +277,7 @@ const fetchOnlineUsers = async () => {
 onMounted(() => {
   fetchDashboardData()
   fetchOnlineUsers()
-  refreshTimer = setInterval(fetchOnlineUsers, 30000)
+  refreshTimer = setInterval(fetchOnlineUsers, 5000)
 })
 
 onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })

@@ -41,6 +41,7 @@ export const getCustomerDetails = async (req: Request, res: Response, next: Next
             role: true,
             status: true,
             lastLoginAt: true,
+            lastActiveAt: true,
             createdAt: true,
           }
         }
@@ -130,6 +131,7 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
     if (isNewUser) {
       user = await prisma.customerUser.create({
         data: {
+          companyId,
           customerId,
           email,
           firstName,
@@ -162,8 +164,22 @@ export const inviteCustomerUser = async (req: Request, res: Response, next: Next
     // Send Email
     const setupUrl = `${env.CLIENT_URL}/setup-account?token=${token}`;
     
+    // Determine the sender. If it's a customer portal user, we must use an InternalUser (SaaS Admin) of the company that has an active EmailConfig to dispatch the notification.
+    let emailSenderId = senderId;
+    if (userPayload.type === 'customer') {
+      const adminWithEmail = await prisma.internalUser.findFirst({
+        where: { companyId, emailConfig: { isNot: null } },
+        select: { id: true }
+      });
+      if (!adminWithEmail) {
+         // Failsafe in case no email is configured, though usually seeded for demo.
+         throw new Error('La empresa proveedora no tiene configurado un servidor de correo para enviar invitaciones.');
+      }
+      emailSenderId = adminWithEmail.id;
+    }
+
     try {
-      await EmailService.sendUserEmail(senderId, {
+      await EmailService.sendUserEmail(emailSenderId, {
         to: email,
         subject: `Invitación a colaborar: ${customer.company.name}`,
         html: EmailService.getInvitationTemplate({

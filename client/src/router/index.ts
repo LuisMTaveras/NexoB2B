@@ -154,6 +154,11 @@ const router = createRouter({
           component: () => import('@/modules/portal/views/OrdersView.vue'),
         },
         {
+          path: 'orders/:id',
+          name: 'portal-order-detail',
+          component: () => import('@/modules/portal/views/OrderDetailView.vue'),
+        },
+        {
           path: 'invoices',
           name: 'portal-invoices',
           component: () => import('@/modules/portal/views/InvoicesView.vue'),
@@ -162,6 +167,7 @@ const router = createRouter({
           path: 'team',
           name: 'portal-team',
           component: () => import('@/modules/portal/views/PortalUsersView.vue'),
+          meta: { role: 'ADMIN' }
         },
         {
           path: 'support',
@@ -247,6 +253,12 @@ router.beforeEach(async (to) => {
       }
       return { name: 'profile' }
     }
+  }
+
+  // 5. Customer Role Enforcement
+  if (to.meta.role && auth.user?.type === 'customer' && auth.user?.role !== to.meta.role) {
+    console.warn(`Access denied for ${to.path}. User role ${auth.user?.role} does not match required ${to.meta.role}`)
+    return { name: 'portal-dashboard' }
   }
 })
 

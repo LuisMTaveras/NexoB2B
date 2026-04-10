@@ -30,7 +30,7 @@ async function main() {
           lastName: 'Demo',
           email: 'admin@demo.com',
           passwordHash,
-          role: 'ADMIN',
+          legacyRole: 'ADMIN',
           status: 'ACTIVE',
         },
       },

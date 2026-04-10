@@ -135,6 +135,8 @@ model Company {
   tickets       Ticket[]
   auditLogs     AuditLog[]
   smartBasketConfig SmartBasketConfig?
+  notifications Notification[]
+  customerUsers CustomerUser[]
 }
 
 model CompanyBranding {
@@ -333,6 +335,7 @@ model Customer {
   status        CustomerStatus @default(ACTIVE)
   portalEnabled Boolean        @default(false)
   maxUsers      Int            @default(5)
+  creditLimit   Decimal?       @db.Decimal(18, 2) @default(0)
   syncedAt      DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -353,6 +356,7 @@ model Customer {
 
 model CustomerUser {
   id           String       @id @default(cuid())
+  companyId    String
   customerId   String
   firstName    String
   lastName     String
@@ -367,6 +371,7 @@ model CustomerUser {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  company  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
   orders   Order[]             @relation("SubmittedBy")
   approvedOrders Order[]       @relation("ApprovedBy")
@@ -655,4 +660,25 @@ model SmartBasketSuggestion {
 
   @@index([customerId])
   @@index([expiresAt])
+}
+
+// ─── Notifications ───────────────────────────────────────────────
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String? // Can be CustomerUser.id or InternalUser.id
+  userType   String // "CUSTOMER" | "INTERNAL"
+  companyId  String
+  type       String // "ORDER_STATUS", "INVOICE_DUE", "TICKET_REPLY", "INFO"
+  title      String
+  body       String
+  link       String? // Redirect URL
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([createdAt])
 }

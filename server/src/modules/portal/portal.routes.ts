@@ -9,6 +9,8 @@ import { logger } from '../../lib/logger';
 import { EmailService } from '../../lib/email.service';
 import { PdfService } from '../../lib/pdf.service';
 import { SmartBasketService } from './smartBasket.service';
+import { exportToCsv } from '../../utils/csvExport';
+import { NotificationService } from './notification.service';
 
 const router = Router();
 
@@ -46,7 +48,7 @@ router.get('/me', asyncHandler(async (req, res) => {
 router.get('/dashboard', asyncHandler(async (req, res) => {
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
-    select: { customerId: true, role: true }
+    select: { customerId: true, role: true, customer: { select: { internalCode: true, creditLimit: true } } }
   });
 
   if (!customerUser) return sendNotFound(res);
@@ -126,6 +128,8 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
   }
 
   return sendSuccess(res, {
+    customerCode: customerUser.customer?.internalCode || null,
+    creditLimit: customerUser.customer?.creditLimit || 0,
     balance,
     orderCount,
     recentInvoices,
@@ -195,6 +199,29 @@ router.get('/catalog', asyncHandler(async (req, res) => {
 router.get('/invoices', asyncHandler(async (req, res) => {
   const customerUser = await prisma.customerUser.findUnique({
     where: { id: req.user!.userId },
+    select: { customerId: true, customer: { select: { creditLimit: true } } }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const invoices = await prisma.invoice.findMany({
+    where: { customerId: customerUser.customerId, companyId: req.companyId! },
+    orderBy: { date: 'desc' }
+  });
+
+  return sendSuccess(res, {
+    invoices,
+    creditLimit: customerUser.customer?.creditLimit || 0
+  });
+}));
+
+/**
+ * GET /api/portal/invoices/export
+ * Export invoices to CSV
+ */
+router.get('/invoices/export', asyncHandler(async (req, res) => {
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
     select: { customerId: true }
   });
 
@@ -205,7 +232,64 @@ router.get('/invoices', asyncHandler(async (req, res) => {
     orderBy: { date: 'desc' }
   });
 
-  return sendSuccess(res, invoices);
+  const exportData = invoices.map(i => ({
+    Numero: i.number,
+    Fecha: i.date.toLocaleDateString('es-DO'),
+    Monto: Number(i.total),
+    Moneda: i.currency,
+    Estado: i.status === 'PAID' ? 'Pagado' : i.status === 'OVERDUE' ? 'Vencido' : 'Pendiente',
+    Vencimiento: i.dueDate ? i.dueDate.toLocaleDateString('es-DO') : 'N/A'
+  }));
+
+  return exportToCsv(res, `Facturas_${new Date().getTime()}`, exportData);
+}));
+
+/**
+ * GET /api/portal/invoices/statement
+ * Downloads a consolidated account statement PDF
+ */
+router.get('/invoices/statement', asyncHandler(async (req, res) => {
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    include: {
+      customer: true
+    }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const invoices = await prisma.invoice.findMany({
+    where: { customerId: customerUser.customerId, companyId: req.companyId! },
+    orderBy: { date: 'desc' }
+  });
+
+  const company = await prisma.company.findUnique({
+    where: { id: req.companyId! }
+  });
+
+  const totals = invoices.reduce((acc, inv) => {
+    const amt = Number(inv.total);
+    acc.total += amt;
+    if (inv.status === 'PAID') acc.paid += amt;
+    else acc.pending += amt;
+    return acc;
+  }, { total: 0, paid: 0, pending: 0 });
+
+  const pdfBuffer = await PdfService.generateStatementPdf({
+    customerName: customerUser.customer.name,
+    date: new Date().toLocaleDateString('es-DO'),
+    totalInvoiced: new Intl.NumberFormat('en-US').format(totals.total),
+    totalPaid: new Intl.NumberFormat('en-US').format(totals.paid),
+    totalPending: new Intl.NumberFormat('en-US').format(totals.pending),
+    creditLimit: new Intl.NumberFormat('en-US').format(Number(customerUser.customer.creditLimit || 0)),
+    currency: invoices[0]?.currency || 'DOP',
+    invoices,
+    companyName: company?.name || 'NexoB2B'
+  });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=Estado_Cuenta_${customerUser.customer.name.replace(/\s+/g, '_')}.pdf`);
+  return res.send(pdfBuffer);
 }));
 
 /**
@@ -231,6 +315,156 @@ router.get('/orders', asyncHandler(async (req, res) => {
   });
 
   return sendSuccess(res, orders);
+}));
+
+/**
+ * GET /api/portal/orders/:id
+ * Fetch single order details
+ */
+router.get('/orders/:id', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const order = await prisma.order.findFirst({
+    where: { 
+      id, 
+      customerId: customerUser.customerId,
+      companyId: req.companyId!
+    },
+    include: {
+      items: true,
+      submittedBy: { select: { firstName: true, lastName: true } },
+      approvedBy: { select: { firstName: true, lastName: true } }
+    }
+  });
+
+  if (!order) return sendNotFound(res, 'Pedido no encontrado');
+
+  return sendSuccess(res, order);
+}));
+
+
+/**
+ * GET /api/portal/orders/export
+ * Export orders to CSV
+ */
+router.get('/orders/export', asyncHandler(async (req, res) => {
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  const orders = await prisma.order.findMany({
+    where: { customerId: customerUser.customerId, companyId: req.companyId! },
+    orderBy: { date: 'desc' }
+  });
+
+  const exportData = orders.map(o => ({
+    Numero: o.number,
+    Fecha: o.date.toLocaleDateString('es-DO'),
+    Estado: o.status,
+    Total: Number(o.total),
+    Moneda: o.currency
+  }));
+
+  return exportToCsv(res, `Pedidos_${new Date().getTime()}`, exportData);
+}));
+
+/**
+ * GET /api/portal/notifications
+ * Fetch user notifications
+ */
+router.get('/notifications', asyncHandler(async (req, res) => {
+  const notifications = await prisma.notification.findMany({
+    where: { 
+      userId: req.user!.userId,
+      companyId: req.companyId!
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20
+  });
+
+  return sendSuccess(res, notifications);
+}));
+
+/**
+ * PATCH /api/portal/notifications/:id/read
+ * Mark notification as read
+ */
+router.patch('/notifications/:id/read', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  await prisma.notification.update({
+    where: { id, userId: req.user!.userId },
+    data: { isRead: true }
+  });
+  return sendSuccess(res, { success: true });
+}));
+
+/**
+ * GET /api/portal/search
+ * Global search for products, orders, and invoices
+ */
+router.get('/search', asyncHandler(async (req, res) => {
+  const { q } = req.query;
+  if (!q || typeof q !== 'string') return sendSuccess(res, { products: [], orders: [], invoices: [] });
+
+  const query = q.toLowerCase();
+  const companyId = req.companyId!;
+
+  const customerUser = await prisma.customerUser.findUnique({
+    where: { id: req.user!.userId },
+    select: { customerId: true }
+  });
+
+  if (!customerUser) return sendNotFound(res);
+
+  // Search Products
+  const products = await prisma.product.findMany({
+    where: {
+      companyId,
+      OR: [
+        { name: { contains: query } },
+        { sku: { contains: query } }
+      ],
+      isActive: true,
+      isVisible: true
+    },
+    take: 5
+  });
+
+  // Search Orders
+  const orders = await prisma.order.findMany({
+    where: {
+      companyId,
+      customerId: customerUser.customerId,
+      OR: [
+        { number: { contains: query } },
+        { notes: { contains: query } }
+      ]
+    },
+    take: 5,
+    orderBy: { createdAt: 'desc' }
+  });
+
+  // Search Invoices
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      companyId,
+      customerId: customerUser.customerId,
+      number: { contains: query }
+    },
+    take: 5,
+    orderBy: { date: 'desc' }
+  });
+
+  return sendSuccess(res, { products, orders, invoices });
 }));
 
 /**
@@ -309,6 +543,15 @@ router.post('/orders', asyncHandler(async (req, res) => {
 
   // Notificar a los Administradores si el pedido requiere aprobación
   if (orderStatus === 'PENDING_APPROVAL') {
+    // In-App Notification
+    await NotificationService.notifyAdmins(
+      companyId,
+      'ORDER_STATUS',
+      'Nuevo Pedido por Autorizar ⚠️',
+      `El comprador ${customerUser.firstName} ${customerUser.lastName} ha creado el pedido ${order.number} por ${order.total} ${order.currency}.`,
+      `/portal/orders`
+    );
+
     (async () => {
       try {
         const mailer = await EmailService.getCompanyTransporter(companyId);
@@ -450,6 +693,19 @@ router.patch('/orders/:id/approve', asyncHandler(async (req, res) => {
     } as any
   });
 
+  // In-App Notification for Buyer
+  if (order.submittedById) {
+    await NotificationService.create({
+      userId: order.submittedById,
+      userType: 'CUSTOMER',
+      companyId: req.companyId!,
+      type: 'ORDER_STATUS',
+      title: '¡Pedido Aprobado! ✅',
+      body: `Tu pedido ${order.number} ha sido aprobado por ${approver.firstName} ${approver.lastName}.`,
+      link: '/portal/orders'
+    });
+  }
+
   // Audit
   await logAction({
     companyId: req.companyId!,
@@ -532,6 +788,19 @@ router.patch('/orders/:id/reject', asyncHandler(async (req, res) => {
       rejectedReason: reason || 'Sin motivo especificado'
     } as any
   });
+
+  // In-App Notification for Buyer
+  if (order.submittedById) {
+    await NotificationService.create({
+      userId: order.submittedById,
+      userType: 'CUSTOMER',
+      companyId: req.companyId!,
+      type: 'ORDER_STATUS',
+      title: 'Pedido Rechazado 🚫',
+      body: `Tu pedido ${order.number} ha sido rechazado por ${rejector.firstName} ${rejector.lastName}. Motivo: ${reason || 'Sin motivo especificado'}.`,
+      link: '/portal/orders'
+    });
+  }
 
   // Audit
   await logAction({

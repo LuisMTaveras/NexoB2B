@@ -50,6 +50,16 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(res, user);
 });
 
+export const logout = asyncHandler(async (req: Request, res: Response) => {
+  // Clear the lastActiveAt explicitly so the user disappears from online lists immediately
+  if (req.user!.type === 'internal') {
+    await prisma.internalUser.update({ where: { id: req.user!.userId }, data: { lastActiveAt: null } });
+  } else {
+    await prisma.customerUser.update({ where: { id: req.user!.userId }, data: { lastActiveAt: null } });
+  }
+  return sendSuccess(res, null, 'Logged out successfully');
+});
+
 export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
   const original = await (prisma as any).internalUser.findUnique({ where: { id: req.user!.userId } });
   const updatedUser = await authService.updateProfile(req.user!.userId, req.body);

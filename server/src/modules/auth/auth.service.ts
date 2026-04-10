@@ -84,6 +84,11 @@ export async function login(data: LoginDto) {
       type: 'internal',
     });
 
+    await prisma.internalUser.update({
+      where: { id: internalUser.id },
+      data: { lastLoginAt: new Date(), lastActiveAt: new Date() }
+    });
+
     return { 
       user: internalUser, 
       company: internalUser.company, 
@@ -119,8 +124,16 @@ export async function login(data: LoginDto) {
       type: 'customer',
     });
 
+    await prisma.customerUser.update({
+      where: { id: customerUser.id },
+      data: { lastLoginAt: new Date(), lastActiveAt: new Date() }
+    });
+
     return {
-      user: customerUser,
+      user: {
+        ...customerUser,
+        customerName: customerUser.customer.name
+      },
       company: customerUser.customer.company,
       type: 'customer' as const,
       ...tokens
@@ -176,7 +189,9 @@ export async function getMe(userId: string, type: 'internal' | 'customer') {
     role: customerUser.role,
     status: customerUser.status,
     type: 'customer',
-    company: customerUser.customer.company,
+    company: customerUser.customer.company, // This is the SaaS provider
+    customerId: customerUser.customerId,    // Added missing customerId
+    customerName: customerUser.customer.name, // This is the user's actual company
     permissions: [] // Currently customers don't have granular permissions
   };
 }

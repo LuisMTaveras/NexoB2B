@@ -252,4 +252,109 @@ export class PdfService {
       await browser.close();
     }
   }
+
+  /**
+   * Generates a consolidated account statement PDF
+   */
+  static async generateStatementPdf(data: {
+    customerName: string;
+    date: string;
+    totalInvoiced: string;
+    totalPaid: string;
+    totalPending: string;
+    creditLimit: string;
+    currency: string;
+    invoices: any[];
+    companyName: string;
+    companyLogo?: string;
+  }): Promise<Buffer> {
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    try {
+      const page = await browser.newPage();
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+            body { font-family: 'Inter', sans-serif; color: #1e293b; padding: 40px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+            .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; flex: 1; margin: 0 5px; }
+            .card-title { font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+            .card-value { font-size: 14px; font-weight: 800; }
+            table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+            th { text-align: left; font-size: 9px; font-weight: 800; text-transform: uppercase; padding: 10px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+            td { padding: 12px 10px; font-size: 11px; border-bottom: 1px solid #f1f5f9; }
+            .status { font-size: 8px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; }
+            .paid { background: #dcfce7; color: #166534; }
+            .pending { background: #fef3c7; color: #92400e; }
+            .overdue { background: #fee2e2; color: #991b1b; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 style="font-size: 24px; font-weight: 800; margin: 0;">ESTADO DE CUENTA</h1>
+              <p style="font-size: 11px; color: #64748b; margin: 5px 0 0 0;">Reporte consolidado al ${data.date}</p>
+            </div>
+            <div style="text-align: right">
+              <p style="font-size: 14px; font-weight: 800; margin: 0;">${data.companyName}</p>
+              <p style="font-size: 11px; color: #64748b;">${data.customerName}</p>
+            </div>
+          </div>
+
+          <div style="display: flex; margin: 0 -5px;">
+            <div class="card"><p class="card-title">Monto Total</p><p class="card-value">${data.currency} ${data.totalInvoiced}</p></div>
+            <div class="card"><p class="card-title">Total Pagado</p><p class="card-value" style="color: #10b981">${data.currency} ${data.totalPaid}</p></div>
+            <div class="card"><p class="card-title">Total Pendiente</p><p class="card-value" style="color: #f43f5e">${data.currency} ${data.totalPending}</p></div>
+            <div class="card" style="background: #0f172a; border: none;"><p class="card-title" style="color: #94a3b8">Límite Crédito</p><p class="card-value" style="color: #fff">${data.currency} ${data.creditLimit}</p></div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Fecha</th>
+                <th>Vencimiento</th>
+                <th>Estado</th>
+                <th style="text-align: right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.invoices.map(i => `
+                <tr>
+                  <td><strong>${i.number}</strong></td>
+                  <td>${new Date(i.date).toLocaleDateString('es-DO')}</td>
+                  <td>${i.dueDate ? new Date(i.dueDate).toLocaleDateString('es-DO') : '---'}</td>
+                  <td>
+                    <span class="status ${i.status.toLowerCase()}">
+                      ${i.status === 'PAID' ? 'Pagado' : i.status === 'OVERDUE' ? 'Vencida' : 'Pendiente'}
+                    </span>
+                  </td>
+                  <td style="text-align: right"><strong>${data.currency} ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(Number(i.total))}</strong></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 50px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+            <p style="font-size: 9px; color: #94a3b8;">Documento generado automáticamente por NexoB2B el ${new Date().toLocaleString('es-DO')}</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await page.setContent(htmlContent);
+      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+      return Buffer.from(pdfBuffer);
+    } finally {
+      await browser.close();
+    }
+  }
 }
+

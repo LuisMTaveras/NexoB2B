@@ -227,16 +227,18 @@ import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
 import { useUiStore } from '@/stores/ui'
+import { formatCurrency, formatNumber } from '@/utils/formatters'
+import type { Product, SmartBasketSuggestion } from '@/types/portal'
 import SmartBasket from '../components/SmartBasket.vue'
 
 const ui = useUiStore()
 
-const products = ref<any[]>([])
+const products = ref<Product[]>([])
 const loading = ref(true)
 const search = ref('')
 const selectedCategory = ref('Todos')
 const showCart = ref(false)
-const cartItems = ref<any[]>([])
+const cartItems = ref<(Product & { quantity: number })[]>([])
 const lastAddedItem = ref<string | null>(null)
 const showToast = ref(false)
 const animatingCart = ref(false)
@@ -244,7 +246,7 @@ const isSubmitting = ref(false)
 
 const categories = computed(() => {
   const cats = ['Todos', ...new Set(products.value.map(p => p.category).filter(Boolean))]
-  return cats
+  return cats as string[]
 })
 
 const filteredProducts = computed(() => {
@@ -271,18 +273,7 @@ const fetchData = async () => {
   }
 }
 
-const formatNumber = (num: number | string, decimals: number = 0) => {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  }).format(Number(num))
-}
-
-const formatCurrency = (val: number | string) => {
-  return new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' }).format(Number(val))
-}
-
-const addToCart = (product: any) => {
+const addToCart = (product: Product) => {
   const existing = cartItems.value.find(i => i.id === product.id)
   if (existing) {
     existing.quantity++
@@ -311,7 +302,7 @@ const removeFromCart = (id: string) => {
   cartItems.value = cartItems.value.filter(i => i.id !== id)
 }
 
-const addAllToCart = (suggestions: any[]) => {
+const addAllToCart = (suggestions: SmartBasketSuggestion[]) => {
   suggestions.forEach(s => {
     const existing = cartItems.value.find(i => i.id === s.id)
     const qty = Math.ceil(s.suggestedQuantity || 1)
@@ -333,8 +324,9 @@ const submitOrder = async () => {
     cartItems.value = []
     showCart.value = false
     ui.alert('Pedido Confirmado', 'Su pedido B2B se ha guardado correctamente. Puede ver el detalle en la pestaña de Órdenes.', 'success')
-  } catch (err: any) {
-    ui.alert('Error', err.response?.data?.error || 'No se pudo procesar el pedido.', 'error')
+  } catch (err: unknown) {
+    const apiError = err as { response?: { data?: { error?: string } } }
+    ui.alert('Error', apiError.response?.data?.error || 'No se pudo procesar el pedido.', 'error')
   } finally {
     isSubmitting.value = false
   }

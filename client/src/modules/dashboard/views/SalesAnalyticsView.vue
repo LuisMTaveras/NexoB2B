@@ -70,7 +70,9 @@
          </div>
 
          <div class="space-y-4 relative z-10">
-            <div v-if="loading" v-for="i in 3" :key="i" class="h-20 bg-slate-100 rounded-3xl animate-pulse"></div>
+            <template v-if="loading">
+               <div v-for="i in 3" :key="'sk_prod_' + i" class="h-20 bg-slate-100 rounded-3xl animate-pulse"></div>
+            </template>
             <div v-else-if="!topProducts.length" class="py-20 text-center opacity-40 italic font-mono text-xs text-slate-500">No hay actividad registrada en este periodo.</div>
             <div v-for="(prod, idx) in topProducts" :key="prod.sku" class="flex items-center gap-5 p-4 bg-white hover:bg-slate-50 rounded-[2rem] border border-slate-100 transition-all shadow-sm">
                <div class="flex-shrink-0 relative">
@@ -111,13 +113,15 @@
          </div>
 
          <div class="flex-1 space-y-6">
-            <div v-if="loading" v-for="i in 5" :key="i" class="flex gap-4 animate-pulse">
-               <div class="w-10 h-10 bg-slate-100 rounded-full"></div>
-               <div class="flex-1 space-y-2 mt-1">
-                  <div class="h-2.5 bg-slate-100 rounded w-1/2"></div>
-                  <div class="h-2 bg-slate-50 rounded w-1/4"></div>
+            <template v-if="loading">
+               <div v-for="i in 5" :key="'sk_cus_' + i" class="flex gap-4 animate-pulse">
+                  <div class="w-10 h-10 bg-slate-100 rounded-full"></div>
+                  <div class="flex-1 space-y-2 mt-1">
+                     <div class="h-2.5 bg-slate-100 rounded w-1/2"></div>
+                     <div class="h-2 bg-slate-50 rounded w-1/4"></div>
+                  </div>
                </div>
-            </div>
+            </template>
             <div v-for="cust in topCustomers" :key="cust.id" class="flex items-center gap-4 group">
                <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-black uppercase ring-4 ring-white shadow-sm border border-indigo-100 group-hover:scale-110 transition-transform">
                   {{ cust.name.slice(0, 2) }}
@@ -218,10 +222,26 @@ ChartJS.register(
   Filler
 )
 
+interface TopProduct {
+  sku: string
+  name: string
+  imageUrl?: string | null
+  total: number
+  quantity: number
+}
+
+interface TopCustomer {
+  id: string
+  name: string
+  code: string
+  orderCount: number
+  totalSpent: number
+}
+
 const loading = ref(true)
 const activePeriod = ref('monthly')
-const topProducts = ref<any[]>([])
-const topCustomers = ref<any[]>([])
+const topProducts = ref<TopProduct[]>([])
+const topCustomers = ref<TopCustomer[]>([])
 const hasRevenueData = ref(false)
 
 const periods = [
@@ -265,19 +285,21 @@ const chartDataDistribution = ref({
   }]
 })
 
-const chartOptionsLines = {
-  responsive: true as const,
-  maintainAspectRatio: false as const,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const chartOptionsLines: any = {
+  responsive: true,
+  maintainAspectRatio: false,
   plugins: { 
-    legend: { display: false as const },
+    legend: { display: false },
     tooltip: {
       padding: 15,
       backgroundColor: '#0f172a',
-      titleFont: { size: 12, weight: 'bold' as const, family: 'Inter' },
-      bodyFont: { size: 14, weight: 'bold' as const, family: 'Inter' },
+      titleFont: { size: 12, weight: 'bold', family: 'Inter' },
+      bodyFont: { size: 14, weight: 'bold', family: 'Inter' },
       displayColors: false,
       callbacks: {
-        label: (context: any) => ` ${formatCurrency(context.parsed.y)}`
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        label: (context: any) => ` ${formatCurrency(context.parsed.y || 0)}`
       }
     }
   },
@@ -294,14 +316,15 @@ const chartOptionsLines = {
   }
 }
 
-const chartOptionsDoughnut = {
-  responsive: true as const,
-  maintainAspectRatio: false as const,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const chartOptionsDoughnut: any = {
+  responsive: true,
+  maintainAspectRatio: false,
   cutout: '80%',
   plugins: {
     legend: { 
-      position: 'bottom' as const,
-      labels: { usePointStyle: true, pointStyle: 'circle' as const, padding: 25, color: '#64748b', font: { size: 11, weight: 'bold' as const, family: 'Inter' } }
+      position: 'bottom',
+      labels: { usePointStyle: true, pointStyle: 'circle', padding: 25, color: '#64748b', font: { size: 11, weight: 'bold', family: 'Inter' } }
     }
   }
 }
