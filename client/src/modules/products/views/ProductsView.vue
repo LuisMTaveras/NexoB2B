@@ -186,11 +186,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useInfiniteScroll } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import api from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
+import type { Product } from '@/types/portal'
+
+interface AdminProduct extends Product {
+  isVisible: boolean;
+  priceSnapshots?: { price: string | number; currency: string }[];
+}
 
 const formatNumber = (num: number, decimals: number = 0) => {
   return new Intl.NumberFormat('en-US', {
@@ -199,8 +204,7 @@ const formatNumber = (num: number, decimals: number = 0) => {
   }).format(num)
 }
 
-const auth = useAuthStore()
-const products = ref<any[]>([])
+const products = ref<AdminProduct[]>([])
 const loading = ref(true)
 const totalProducts = ref(0)
 const currentPage = ref(1)
@@ -209,7 +213,7 @@ const limit = ref(24)
 const searchQuery = ref('')
 const statusFilter = ref<'all' | 'visible' | 'hidden'>('all')
 
-let searchTimeout: any = null
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Fetch logic
 const fetchProducts = async (append = false) => {
@@ -275,7 +279,7 @@ const resetFilters = () => {
   fetchProducts()
 }
 
-const toggleVisibility = async (product: any) => {
+const toggleVisibility = async (product: AdminProduct) => {
   const previousState = product.isVisible
   product.isVisible = !previousState // Optimistic UI Update
 
@@ -291,18 +295,18 @@ const toggleVisibility = async (product: any) => {
 }
 
 // Formatters
-const getBaseSnapshot = (product: any) => {
+const getBaseSnapshot = (product: AdminProduct) => {
   if (!product.priceSnapshots || product.priceSnapshots.length === 0) return null
   return product.priceSnapshots[0]
 }
 
-const getBasePrice = (product: any) => {
+const getBasePrice = (product: AdminProduct) => {
   const snap = getBaseSnapshot(product)
   if (!snap) return '--'
   return formatNumber(Number(snap.price), 2)
 }
 
-const getBaseCurrency = (product: any) => {
+const getBaseCurrency = (product: AdminProduct) => {
   const snap = getBaseSnapshot(product)
   return snap ? snap.currency : ''
 }
