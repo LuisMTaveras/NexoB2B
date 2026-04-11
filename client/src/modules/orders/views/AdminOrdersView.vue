@@ -30,10 +30,18 @@
 
     <!-- Filters & Stats -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div v-for="stat in stats" :key="stat.label" class="bg-white/60 backdrop-blur-xl p-5 rounded-3xl border border-white/80 shadow-sm">
+      <div v-for="stat in stats" :key="stat.label" class="bg-white/60 backdrop-blur-xl p-5 rounded-3xl border border-white/80 shadow-sm transition-all hover:shadow-md">
         <div class="flex items-center gap-3 mb-2">
-          <div :class="`p-2 rounded-xl bg-${stat.color}-50 text-${stat.color}-600`">
-            <Icon :icon="stat.icon" class="w-5 h-5" />
+          <div 
+            class="p-2 rounded-xl"
+            :class="{
+              'bg-blue-50 text-blue-600': stat.color === 'blue',
+              'bg-amber-50 text-amber-600': stat.color === 'amber',
+              'bg-green-50 text-green-600': stat.color === 'green',
+              'bg-indigo-50 text-indigo-600': stat.color === 'indigo',
+            }"
+          >
+            <Icon :icon="stat.icon" class="w-5 h-5 flex-shrink-0" />
           </div>
           <span class="text-xs font-black uppercase tracking-widest text-[var(--color-brand-400)]">{{ stat.label }}</span>
         </div>
@@ -170,6 +178,16 @@
                 </button>
              </div>
 
+              <div v-if="selectedOrder.detailUnavailable" class="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-4 text-amber-800 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+                   <Icon icon="mdi:alert-circle-outline" class="w-6 h-6" />
+                </div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">Sincronización en curso</p>
+                  <p class="text-xs font-bold">No se pudieron recuperar las líneas desde el ERP en tiempo real. Mostrando datos locales si existen.</p>
+                </div>
+             </div>
+
              <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                 <div v-for="item in selectedOrder.items" :key="item.id" class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
                    <div>
@@ -266,10 +284,10 @@ const stats = computed(() => {
   const totalVal = orders.value.reduce((sum, o) => sum + Number(o.total), 0)
   
   return [
-    { label: 'Total Pedidos', value: orders.value.length, icon: 'mdi:cart-multiple', color: 'blue' },
-    { label: 'Pend. Aprobación', value: pendingApproval, icon: 'mdi:clock-alert-outline', color: 'amber' },
-    { label: 'Valor Total', value: formatCurrency(totalVal, 'DOP'), icon: 'mdi:cash-multiple', color: 'green' },
-    { label: 'Clientes Activos', value: new Set(orders.value.map(o => o.customerId)).size, icon: 'mdi:account-badge-outline', color: 'indigo' },
+    { label: 'Total Pedidos', value: orders.value.length, icon: 'mdi:cart-outline', color: 'blue' },
+    { label: 'Pend. Aprobación', value: pendingApproval, icon: 'mdi:clock-check-outline', color: 'amber' },
+    { label: 'Valor Total', value: formatCurrency(totalVal, 'DOP'), icon: 'mdi:currency-usd', color: 'green' },
+    { label: 'Clientes Activos', value: new Set(orders.value.map(o => o.customerId)).size, icon: 'mdi:account-group-outline', color: 'indigo' },
   ]
 })
 
@@ -315,8 +333,14 @@ async function exportOrders() {
   }
 }
 
-function viewOrderDetails(order: any) {
+async function viewOrderDetails(order: any) {
   selectedOrder.value = order
+  try {
+    const res = await api.get(`/orders/${order.id}`)
+    selectedOrder.value = res.data.data
+  } catch (error) {
+    console.error('Error fetching full order details:', error)
+  }
 }
 
 function formatDate(date: string) {

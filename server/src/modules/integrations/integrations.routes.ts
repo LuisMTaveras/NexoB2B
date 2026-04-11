@@ -4,18 +4,17 @@ import { prisma } from '../../lib/prisma';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { sendSuccess, sendCreated, sendError, sendNotFound } from '../../utils/apiResponse';
 import { authenticate, requireInternalUser } from '../../middleware/auth';
-import { buildErpClient } from '../../lib/erpClient';
-import { runSyncJob } from '../sync/sync.service';
-import { enqueueSync, getQueue, QUEUE_NAME } from '../../lib/queue';
+import { IntegrationsService } from './integrations.service';
+import { getQueue, QUEUE_NAME } from '../../lib/queue';
 import { upsertMappingSchedule, removeMappingSchedule } from '../../lib/scheduler';
-import { logAction } from '../../lib/audit';
+import { buildErpClient } from '../../lib/erpClient';
+import { SyncResource } from '@prisma/client';
 
 const router = Router();
 router.use(authenticate, requireInternalUser);
 
 // ─── Queue Monitoring ─────────────────────────────────────────────
 
-// GET /api/integrations/queue/status
 router.get('/queue/status', asyncHandler(async (req, res) => {
   const boss = await getQueue();
   
@@ -33,15 +32,12 @@ router.get('/queue/status', asyncHandler(async (req, res) => {
   ]);
 
   const syncQueue = queues.find(q => q.name === QUEUE_NAME);
-  
-  // Map pg-boss v12 states to what the frontend expects
   const stats = syncQueue ? {
     activeCount: syncQueue.activeCount ?? 0,
     queuedCount: (syncQueue.queuedCount ?? 0) + (syncQueue.deferredCount ?? 0),
     totalCount: syncQueue.totalCount ?? 0
   } : { activeCount: 0, queuedCount: 0, totalCount: 0 };
   
-  // Enhance schedules with integration names
   const mappingIds = schedules.map(s => s.key);
   const mappings = await prisma.integrationMapping.findMany({
     where: { id: { in: mappingIds } },
@@ -57,11 +53,7 @@ router.get('/queue/status', asyncHandler(async (req, res) => {
     };
   });
 
-  return sendSuccess(res, {
-    stats,
-    schedules: enhancedSchedules,
-    recentJobs
-  });
+  return sendSuccess(res, { stats, schedules: enhancedSchedules, recentJobs });
 }));
 
 // ─── CRUD Integrations ────────────────────────────────────────────
@@ -76,150 +68,69 @@ const createIntegrationSchema = z.object({
   testEndpoint: z.string().optional(),
 });
 
-// GET /api/integrations
 router.get('/', asyncHandler(async (req, res) => {
-  const integrations = await prisma.integration.findMany({
-    where: { companyId: req.companyId! },
-    include: {
-      mappings: true,
-      syncJobs: { orderBy: { createdAt: 'desc' }, take: 15 },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const integrations = await IntegrationsService.findAll(req.companyId!);
   return sendSuccess(res, integrations);
 }));
 
-// POST /api/integrations
 router.post('/', asyncHandler(async (req, res) => {
   const data = createIntegrationSchema.parse(req.body);
-  const integration = await prisma.integration.create({
-    data: { ...data, credentials: data.credentials as any, headers: data.headers as any, companyId: req.companyId! },
-  });
-
-  // Audit integration creation
-  await logAction({
-    companyId: req.companyId!,
+  const integration = await IntegrationsService.create(req.companyId!, data, {
     userId: req.user!.userId,
-    userEmail: req.user!.email,
-    action: 'INTEGRATION_CREATED',
-    resource: 'Integration',
-    resourceId: integration.id,
+    email: req.user!.email,
     ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    details: { 
-      name: integration.name,
-      authMethod: integration.authMethod,
-      newData: integration
-    }
+    userAgent: req.headers['user-agent']
   });
-
   return sendCreated(res, integration, 'Integration created');
 }));
 
-// GET /api/integrations/:id
 router.get('/:id', asyncHandler(async (req, res) => {
-  const integration = await prisma.integration.findFirst({
-    where: { id: req.params.id, companyId: req.companyId! },
-    include: {
-      mappings: true,
-      syncJobs: { orderBy: { createdAt: 'desc' }, take: 15 },
-    },
-  });
+  const integration = await IntegrationsService.findById(req.params.id, req.companyId!);
   if (!integration) return sendNotFound(res, 'Integration not found');
   return sendSuccess(res, integration);
 }));
 
-// PATCH /api/integrations/:id
 router.patch('/:id', asyncHandler(async (req, res) => {
-  const existing = await prisma.integration.findFirst({ where: { id: req.params.id, companyId: req.companyId! } });
-  if (!existing) return sendNotFound(res);
-  const { credentials, headers, ...rest } = req.body;
-  const updated = await prisma.integration.update({
-    where: { id: req.params.id },
-    data: {
-      ...rest,
-      ...(credentials && { credentials }),
-      ...(headers && { headers }),
-    },
-  });
-
-  // Audit integration update
-  await logAction({
-    companyId: req.companyId!,
+  const updated = await IntegrationsService.update(req.params.id, req.companyId!, req.body, {
     userId: req.user!.userId,
-    userEmail: req.user!.email,
-    action: 'INTEGRATION_UPDATED',
-    resource: 'Integration',
-    resourceId: updated.id,
+    email: req.user!.email,
     ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    details: { 
-      name: updated.name,
-      changedFields: Object.keys(req.body),
-      oldData: existing,
-      newData: updated
-    }
+    userAgent: req.headers['user-agent']
   });
-
+  if (!updated) return sendNotFound(res);
   return sendSuccess(res, updated, 'Integration updated');
 }));
 
-// DELETE /api/integrations/:id
 router.delete('/:id', asyncHandler(async (req, res) => {
-  const existing = await prisma.integration.findFirst({ where: { id: req.params.id, companyId: req.companyId! } });
-  if (!existing) return sendNotFound(res);
-  await prisma.integration.delete({ where: { id: req.params.id } });
-
-  // Audit integration deletion
-  await logAction({
-    companyId: req.companyId!,
+  const success = await IntegrationsService.delete(req.params.id, req.companyId!, {
     userId: req.user!.userId,
-    userEmail: req.user!.email,
-    action: 'INTEGRATION_DELETED',
-    resource: 'Integration',
-    resourceId: req.params.id,
+    email: req.user!.email,
     ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    details: { 
-      name: existing.name,
-      oldData: existing
-    }
+    userAgent: req.headers['user-agent']
   });
-
+  if (!success) return sendNotFound(res);
   return sendSuccess(res, null, 'Integration deleted');
 }));
 
 // ─── Test Connection ───────────────────────────────────────────────
 
-// POST /api/integrations/:id/test
 router.post('/:id/test', asyncHandler(async (req, res) => {
-  const integration = await prisma.integration.findFirst({ where: { id: req.params.id, companyId: req.companyId! } });
-  if (!integration) return sendNotFound(res);
-
-  const client = buildErpClient(
-    integration.baseUrl,
-    integration.authMethod as any,
-    integration.credentials as any,
-    (integration.headers as Record<string, string>) ?? {},
-  );
-
-  const testEndpoint = integration.testEndpoint || req.body.endpoint || '/';
-  const result = await client.testConnection(testEndpoint);
-
-  if (result.ok) {
-    await prisma.integration.update({ where: { id: integration.id }, data: { isActive: true } });
-    return sendSuccess(res, result, 'Connection successful');
-  } else {
-    return sendError(res, `Connection failed: ${result.error}`, 400);
-  }
+  const result = await IntegrationsService.testConnection(req.params.id, req.companyId!, req.body.endpoint);
+  if (result.ok) return sendSuccess(res, result, 'Connection successful');
+  return sendError(res, `Connection failed: ${result.error}`, 400);
 }));
 
 // ─── Mappings ─────────────────────────────────────────────────────
 
 const createMappingSchema = z.object({
-  resource: z.enum(['PRODUCTS', 'CUSTOMERS', 'PRICE_LISTS', 'PRICE_ASSIGNMENTS', 'INVOICES', 'RECEIVABLES', 'ORDERS']),
+  resource: z.enum(['PRODUCTS', 'CUSTOMERS', 'PRICE_LISTS', 'PRICE_ASSIGNMENTS', 'INVOICES', 'RECEIVABLES', 'ORDERS', 'PAYMENTS']),
+  direction: z.enum(['INBOUND', 'OUTBOUND']).default('INBOUND'),
+  method: z.string().default('GET'),
   externalEndpoint: z.string().min(1),
-  fieldMappings: z.record(z.string()),
+  fieldMappings: z.record(z.unknown()),
+  transforms: z.record(z.unknown()).optional().nullable(),
+  extendedFieldsDef: z.record(z.unknown()).optional().nullable(),
+  successIdField: z.string().optional().nullable(),
   paginationConfig: z.object({
     type: z.enum(['page', 'offset', 'cursor', 'none']),
     pageParam: z.string().optional(),
@@ -230,273 +141,110 @@ const createMappingSchema = z.object({
     nextCursorPath: z.string().optional(),
     dataPath: z.string().optional(),
     totalPath: z.string().optional(),
-  }).optional(),
-  queryParams: z.record(z.unknown()).optional(),
-  // Scheduling
+  }).optional().nullable(),
+  detailEndpoint: z.string().optional().nullable(),
+  detailDataPath: z.string().optional().nullable(),
+  detailFetchOn: z.enum(['ON_BATCH', 'ON_DEMAND']).optional().default('ON_BATCH'),
+  detailFieldMappings: z.record(z.unknown()).optional().nullable(),
+  queryParams: z.record(z.unknown()).optional().nullable(),
   isScheduled: z.boolean().optional().default(false),
   syncCron: z.string().optional().nullable(),
   syncInterval: z.string().optional().nullable(),
 });
 
-// GET /api/integrations/:id/mappings
 router.get('/:id/mappings', asyncHandler(async (req, res) => {
-  const mappings = await prisma.integrationMapping.findMany({
-    where: { integrationId: req.params.id },
-  });
+  const mappings = await prisma.integrationMapping.findMany({ where: { integrationId: req.params.id } });
   return sendSuccess(res, mappings);
 }));
 
-// POST /api/integrations/:id/mappings
 router.post('/:id/mappings', asyncHandler(async (req, res) => {
   const integration = await prisma.integration.findFirst({ where: { id: req.params.id, companyId: req.companyId! } });
   if (!integration) return sendNotFound(res);
 
   const data = createMappingSchema.parse(req.body);
-
-  const existingMapping = await prisma.integrationMapping.findUnique({
-    where: { integrationId_resource: { integrationId: req.params.id, resource: data.resource } }
-  });
-
   const mapping = await prisma.integrationMapping.upsert({
-    where: { integrationId_resource: { integrationId: req.params.id, resource: data.resource } },
-    create: {
-      integrationId: req.params.id,
-      resource: data.resource,
-      externalEndpoint: data.externalEndpoint,
-      fieldMappings: data.fieldMappings as any,
-      paginationConfig: data.paginationConfig as any,
-      queryParams: data.queryParams as any,
-      isScheduled: data.isScheduled ?? false,
-      syncCron: data.syncCron ?? null,
-      syncInterval: data.syncInterval ?? null,
+    where: { 
+      integrationId_resource_direction: { 
+        integrationId: req.params.id, 
+        resource: data.resource,
+        direction: data.direction || 'INBOUND'
+      } 
     },
-    update: {
-      externalEndpoint: data.externalEndpoint,
-      fieldMappings: data.fieldMappings as any,
-      paginationConfig: data.paginationConfig as any,
-      queryParams: data.queryParams as any,
-      isScheduled: data.isScheduled ?? false,
-      syncCron: data.syncCron ?? null,
-      syncInterval: data.syncInterval ?? null,
-    },
+    create: { ...data, integrationId: req.params.id },
+    update: { ...data },
   });
 
-  // Background actions (Scheduler & Audit)
-  try {
-    await upsertMappingSchedule(mapping.id);
-    await logAction({
-      companyId: req.companyId!,
-      userId: req.user!.userId,
-      userEmail: req.user!.email,
-      action: 'INTEGRATION_MAPPING_SAVED',
-      resource: 'IntegrationMapping',
-      resourceId: mapping.id,
-      ip: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: { 
-        resource: mapping.resource,
-        oldData: existingMapping,
-        newData: mapping
-      }
-    });
-  } catch (err: any) {
-    console.error(`[Integrations] Failed to schedule or audit mapping save for ${mapping.id}: ${err.message}`);
-  }
-
+  await upsertMappingSchedule(mapping.id);
   return sendCreated(res, mapping, 'Mapping saved');
 }));
 
-// PATCH /api/integrations/:id/mappings/:mappingId
 router.patch('/:id/mappings/:mappingId', asyncHandler(async (req, res) => {
-  const mapping = await prisma.integrationMapping.findFirst({
-    where: { id: req.params.mappingId, integrationId: req.params.id },
-  });
-  if (!mapping) return sendNotFound(res);
-
   const updated = await prisma.integrationMapping.update({
     where: { id: req.params.mappingId },
-    data: {
-      ...(req.body.externalEndpoint && { externalEndpoint: req.body.externalEndpoint }),
-      ...(req.body.fieldMappings && { fieldMappings: req.body.fieldMappings }),
-      ...(req.body.paginationConfig && { paginationConfig: req.body.paginationConfig }),
-      ...(req.body.queryParams && { queryParams: req.body.queryParams }),
-      ...(req.body.isActive !== undefined && { isActive: req.body.isActive }),
-      ...(req.body.isScheduled !== undefined && { isScheduled: req.body.isScheduled }),
-      ...(req.body.syncCron && { syncCron: req.body.syncCron }),
-      ...(req.body.syncInterval && { syncInterval: req.body.syncInterval }),
-    },
+    data: req.body,
   });
-
-  // Background actions (Scheduler & Audit)
-  try {
-    await upsertMappingSchedule(updated.id);
-    await logAction({
-      companyId: req.companyId!,
-      userId: req.user!.userId,
-      userEmail: req.user!.email,
-      action: 'INTEGRATION_MAPPING_SAVED',
-      resource: 'IntegrationMapping',
-      resourceId: updated.id,
-      ip: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: { 
-        resource: updated.resource,
-        oldData: mapping,
-        newData: updated
-      }
-    });
-  } catch (err: any) {
-    console.error(`[Integrations] Failed to schedule or audit mapping update for ${updated.id}: ${err.message}`);
-  }
-
+  await upsertMappingSchedule(updated.id);
   return sendSuccess(res, updated, 'Mapping updated');
 }));
 
-// DELETE /api/integrations/:id/mappings/:mappingId
 router.delete('/:id/mappings/:mappingId', asyncHandler(async (req, res) => {
   await removeMappingSchedule(req.params.mappingId);
   await prisma.integrationMapping.delete({ where: { id: req.params.mappingId } });
-
-  // Audit mapping deletion
-  await logAction({
-    companyId: req.companyId!,
-    userId: req.user!.userId,
-    userEmail: req.user!.email,
-    action: 'INTEGRATION_MAPPING_DELETED',
-    resource: 'IntegrationMapping',
-    resourceId: req.params.mappingId,
-    ip: req.ip,
-    userAgent: req.headers['user-agent']
-  });
-
   return sendSuccess(res, null, 'Mapping deleted');
 }));
 
 // ─── Sync ─────────────────────────────────────────────────────────
 
-const syncSchema = z.object({
-  resource: z.enum(['PRODUCTS', 'CUSTOMERS', 'PRICE_LISTS', 'PRICE_ASSIGNMENTS',
-                    'INVOICES', 'RECEIVABLES', 'ORDERS', 'ALL']).default('ALL'),
-});
-
-// POST /api/integrations/:id/sync
 router.post('/:id/sync', asyncHandler(async (req, res) => {
-  const integration = await prisma.integration.findFirst({
-    where: { id: req.params.id, companyId: req.companyId! },
-    include: { mappings: { where: { isActive: true } } },
-  });
-  if (!integration) return sendNotFound(res);
-  if (!integration.isActive) return sendError(res, 'Integration is not active. Test connection first.', 400);
-
-  const { resource } = syncSchema.parse(req.body);
-
-  // Check for running job
-  const running = await prisma.integrationSyncJob.findFirst({
-    where: { integrationId: integration.id, status: 'RUNNING' },
-  });
-  if (running) return sendError(res, 'A sync is already running for this integration', 409);
-
-  const mappingsToSync = resource === 'ALL'
-    ? integration.mappings
-    : integration.mappings.filter((m) => m.resource === resource);
-
-  if (mappingsToSync.length === 0) {
-    return sendError(res, `No active mapping found for resource: ${resource}. Configure a mapping first.`, 400);
-  }
-
-  // Register PENDING jobs in Prisma immediately
-  const queueJobIds: (string | null)[] = [];
-  for (const mapping of mappingsToSync) {
-    const syncJob = await prisma.integrationSyncJob.create({
-      data: {
-        integrationId: integration.id,
-        resource: mapping.resource,
-        status: 'PENDING',
-        triggeredBy: 'manual',
-      }
+  try {
+    const resource = (req.body.resource as SyncResource | 'ALL') || 'ALL';
+    const queueJobIds = await IntegrationsService.triggerSync(req.params.id, req.companyId!, resource, {
+      userId: req.user!.userId,
+      email: req.user!.email,
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
     });
-
-    const queueJobId = await enqueueSync({
-      integrationId: integration.id,
-      companyId: req.companyId!,
-      mappingId: mapping.id,
-      syncJobId: syncJob.id,
-      resource: mapping.resource,
-      triggeredBy: 'manual',
-    });
-    queueJobIds.push(queueJobId);
+    return res.status(202).json({ success: true, message: `Sync enqueued`, data: { queueJobIds } });
+  } catch (err: any) {
+    return sendError(res, err.message, err.message.includes('not found') ? 404 : 400);
   }
-
-  // Audit manual sync trigger
-  await logAction({
-    companyId: req.companyId!,
-    userId: req.user!.userId,
-    userEmail: req.user!.email,
-    action: 'INTEGRATION_SYNC_TRIGGERED',
-    resource: 'Integration',
-    resourceId: integration.id,
-    ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    details: { resource }
-  });
-
-  return res.status(202).json({
-    success: true,
-    message: `Sync enqueued for ${mappingsToSync.length} resource(s)`,
-    data: { queueJobIds },
-  });
 }));
 
 // ─── Jobs & Logs ──────────────────────────────────────────────────
 
-// GET /api/integrations/:id/jobs
 router.get('/:id/jobs', asyncHandler(async (req, res) => {
   const page = Number(req.query.page ?? 1);
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
   const skip = (page - 1) * limit;
 
   const [jobs, total] = await Promise.all([
-    prisma.integrationSyncJob.findMany({
-      where: { integrationId: req.params.id },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-    }),
+    prisma.integrationSyncJob.findMany({ where: { integrationId: req.params.id }, orderBy: { createdAt: 'desc' }, skip, take: limit }),
     prisma.integrationSyncJob.count({ where: { integrationId: req.params.id } }),
   ]);
-
   return sendSuccess(res, jobs, undefined, 200, { total, page, limit, totalPages: Math.ceil(total / limit) });
 }));
 
-// GET /api/integrations/:id/jobs/:jobId
 router.get('/:id/jobs/:jobId', asyncHandler(async (req, res) => {
-  const job = await prisma.integrationSyncJob.findUnique({
-    where: { id: req.params.jobId },
-    include: { _count: { select: { logs: true } } },
-  });
+  const job = await prisma.integrationSyncJob.findUnique({ where: { id: req.params.jobId } });
   if (!job) return sendNotFound(res);
   return sendSuccess(res, job);
 }));
 
-// GET /api/integrations/:id/jobs/:jobId/logs
 router.get('/:id/jobs/:jobId/logs', asyncHandler(async (req, res) => {
   const page = Number(req.query.page ?? 1);
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const skip = (page - 1) * limit;
   const level = req.query.level as string | undefined;
 
-  const where: any = { jobId: req.params.jobId };
-  if (level) where.level = level;
-
   const [logs, total] = await Promise.all([
-    prisma.integrationSyncLog.findMany({ where, orderBy: { createdAt: 'asc' }, skip, take: limit }),
-    prisma.integrationSyncLog.count({ where }),
+    prisma.integrationSyncLog.findMany({ where: { jobId: req.params.jobId, ...(level && { level }) }, orderBy: { createdAt: 'asc' }, skip, take: limit }),
+    prisma.integrationSyncLog.count({ where: { jobId: req.params.jobId, ...(level && { level }) } }),
   ]);
-
   return sendSuccess(res, logs, undefined, 200, { total, page, limit, totalPages: Math.ceil(total / limit) });
 }));
 
 // ─── Smart Integration Tools ──────────────────────────────────────
+
 const SCHEMA_FIELDS: Record<string, string[]> = {
   PRODUCTS: ['sku', 'name', 'description', 'price', 'currency', 'stock', 'imageUrl', 'category', 'brand', 'unit'],
   CUSTOMERS: ['internalCode', 'name', 'email', 'taxId', 'phone', 'address', 'city', 'country'],
@@ -504,70 +252,31 @@ const SCHEMA_FIELDS: Record<string, string[]> = {
   ORDERS: ['number', 'date', 'total', 'currency', 'status', 'notes']
 };
 
-/**
- * POST /api/integrations/:id/smart/suggest
- * Fetches sample data and suggests mappings based on name similarity
- */
 router.post('/:id/smart/suggest', asyncHandler(async (req, res) => {
   const { resource, endpoint } = req.body;
-  if (!resource || !SCHEMA_FIELDS[resource]) {
-    return sendError(res, 'Invalid resource for suggestion', 400);
-  }
+  if (!resource || !SCHEMA_FIELDS[resource]) return sendError(res, 'Invalid resource', 400);
 
-  const integration = await prisma.integration.findFirst({
-    where: { id: req.params.id, companyId: req.companyId! }
-  });
+  const integration = await IntegrationsService.findById(req.params.id, req.companyId!);
   if (!integration) return sendNotFound(res);
 
-  const client = buildErpClient(
-    integration.baseUrl,
-    integration.authMethod as any,
-    integration.credentials as any,
-    (integration.headers as Record<string, string>) ?? {},
-  );
+  const client = buildErpClient(integration.baseUrl, integration.authMethod as any, integration.credentials as any, (integration.headers as Record<string, string>) ?? {});
+  const response = await client.getHttp().get(endpoint, { params: { limit: 1 } });
 
-  // 1. Fetch small sample
-  const response = await client.getHttp().request({
-    method: 'GET',
-    url: endpoint,
-    params: { limit: 1, $top: 1, top: 1 }
-  });
-
-  // Extract keys from the first object found
   let sampleObj: any = null;
   const data = response.data;
-  
   if (Array.isArray(data) && data.length > 0) sampleObj = data[0];
-  else if (data && typeof data === 'object') {
-     const possibleArrays = Object.values(data).find(v => Array.isArray(v));
-     if (Array.isArray(possibleArrays) && possibleArrays.length > 0) sampleObj = possibleArrays[0];
-     else sampleObj = data;
-  }
+  else if (data && typeof data === 'object') sampleObj = Object.values(data).find(v => Array.isArray(v))?.[0] || data;
 
-  if (!sampleObj) return sendError(res, 'Could not retrieve sample data from ERP', 400);
+  if (!sampleObj) return sendError(res, 'No sample data', 400);
 
   const erpKeys = Object.keys(sampleObj);
-  const internalFields = SCHEMA_FIELDS[resource]!;
   const suggestedMappings: Record<string, string> = {};
-
-  internalFields.forEach(field => {
-    const fieldLower = field.toLowerCase();
-    const match = erpKeys.find(key => {
-      const keyLower = key.toLowerCase();
-      return keyLower === fieldLower || 
-             keyLower.includes(fieldLower) || 
-             fieldLower.includes(keyLower) ||
-             (fieldLower === 'id' && keyLower === 'code') ||
-             (fieldLower === 'sku' && keyLower === 'itemcode');
-    });
+  SCHEMA_FIELDS[resource].forEach(field => {
+    const match = erpKeys.find(key => key.toLowerCase().includes(field.toLowerCase()) || field.toLowerCase().includes(key.toLowerCase()));
     if (match) suggestedMappings[field] = match;
   });
 
-  return sendSuccess(res, {
-    suggestedMappings,
-    sampleKeys: erpKeys,
-    confidence: Object.keys(suggestedMappings).length / internalFields.length
-  }, 'Smart mapping suggestions generated');
+  return sendSuccess(res, { suggestedMappings, erpKeys });
 }));
 
 export default router;

@@ -24,6 +24,17 @@ async function bootstrap() {
     await loadSchedules();
     logger.info('✅ Scheduler loaded');
 
+    // Start Outbound Polling Worker (Every 30 seconds)
+    setInterval(async () => {
+      try {
+        const { OutboundSyncService } = await import('./modules/integration/outbound.service');
+        await OutboundSyncService.processOutboundQueue();
+      } catch (err: any) {
+        logger.error('Outbound worker failed', { error: err.message });
+      }
+    }, 30000);
+    logger.info('✅ Outbound polling worker started (30s)');
+
     const server = app.listen(env.PORT, () => {
       logger.info(`🚀 NexoB2B API running on http://localhost:${env.PORT}`);
       logger.info(`   Environment: ${env.NODE_ENV}`);

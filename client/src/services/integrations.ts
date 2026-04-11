@@ -1,7 +1,8 @@
 import api from '@/services/api'
 
 export type AuthMethod = 'API_KEY' | 'BEARER_TOKEN' | 'BASIC_AUTH' | 'OAUTH2'
-export type SyncResource = 'PRODUCTS' | 'CUSTOMERS' | 'PRICE_LISTS' | 'PRICE_ASSIGNMENTS' | 'INVOICES' | 'RECEIVABLES' | 'ORDERS'
+export type SyncDirection = 'INBOUND' | 'OUTBOUND'
+export type SyncResource = 'PRODUCTS' | 'CUSTOMERS' | 'PRICE_LISTS' | 'PRICE_ASSIGNMENTS' | 'INVOICES' | 'RECEIVABLES' | 'ORDERS' | 'PAYMENTS'
 
 export interface Integration {
   id: string
@@ -18,9 +19,17 @@ export interface Integration {
 export interface IntegrationMapping {
   id: string
   resource: SyncResource
+  direction: SyncDirection
+  method: string
   externalEndpoint: string
-  fieldMappings: Record<string, string>
+  fieldMappings: Record<string, any>
+  transforms?: Record<string, any>
+  extendedFieldsDef?: Record<string, any>
+  successIdField?: string
   paginationConfig?: PaginationConfig
+  detailEndpoint?: string
+  detailFetchOn?: 'ON_BATCH' | 'ON_DEMAND'
+  detailFieldMappings?: Record<string, any>
   queryParams?: Record<string, unknown>
   isActive: boolean
 }
@@ -72,6 +81,7 @@ export const RESOURCE_LABELS: Record<SyncResource, string> = {
   INVOICES: 'Facturas',
   RECEIVABLES: 'Cuentas por Cobrar',
   ORDERS: 'Pedidos',
+  PAYMENTS: 'Pagos',
 }
 
 export const RESOURCE_ICONS: Record<SyncResource, string> = {
@@ -82,6 +92,7 @@ export const RESOURCE_ICONS: Record<SyncResource, string> = {
   INVOICES: 'mdi:file-document-outline',
   RECEIVABLES: 'mdi:cash-clock',
   ORDERS: 'mdi:shopping-outline',
+  PAYMENTS: 'mdi:credit-card-outline',
 }
 
 export const DEFAULT_FIELD_MAPPINGS: Record<SyncResource, Record<string, string>> = {
@@ -107,4 +118,9 @@ export const DEFAULT_FIELD_MAPPINGS: Record<SyncResource, Record<string, string>
   INVOICES: { externalId: 'numero', customerExternalId: 'codigoCliente', number: 'numero', date: 'fecha', dueDate: 'vencimiento', total: 'total', subtotal: 'subtotal', tax: 'itbis', status: 'estado' },
   RECEIVABLES: { externalId: 'id', customerExternalId: 'codigoCliente', documentRef: 'documento', amount: 'monto', balance: 'saldo', dueDate: 'vencimiento' },
   ORDERS: { externalId: 'numero', customerExternalId: 'codigoCliente', number: 'numero', date: 'fecha', status: 'estado', total: 'total' },
+  PAYMENTS: { invoiceRef: 'numeroFactura', amount: 'monto', date: 'fecha', method: 'formaPago' },
+}
+
+export const DEFAULT_DETAIL_MAPPINGS: Record<string, Record<string, string>> = {
+  ORDERS: { sku: 'codigoArticulo', name: 'descripcion', quantity: 'cantidad', unitPrice: 'precio', total: 'subtotal' },
 }

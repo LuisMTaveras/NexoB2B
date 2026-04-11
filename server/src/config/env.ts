@@ -13,6 +13,8 @@ const envSchema = z.object({
   API_URL: z.string().url().default('http://localhost:3000'),
   BCRYPT_ROUNDS: z.coerce.number().default(12),
   ENCRYPTION_KEY: z.string().length(32).default('32_characters_secret_key_1234567'), // 32 bytes for AES-256
+  REDIS_URL: z.string().url().optional(),
 });
+
 
 export const env = envSchema.parse(process.env);

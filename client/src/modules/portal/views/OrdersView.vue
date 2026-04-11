@@ -114,6 +114,17 @@
              leave-to-class="opacity-0 -translate-y-4"
           >
              <div v-if="expandedOrder === order.id" class="border-t border-[var(--color-brand-100)]/50 bg-[var(--color-brand-50)]/50 p-6">
+                <!-- Detail Unavailable Warning -->
+                <div v-if="(order as any).detailUnavailable" class="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-4 text-amber-800 animate-in fade-in slide-in-from-top-2 duration-300">
+                   <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Icon icon="mdi:alert-circle-outline" class="w-6 h-6" />
+                   </div>
+                   <div>
+                     <p class="text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">Detalle no disponible</p>
+                     <p class="text-xs font-bold">No se pudieron recuperar las líneas de este pedido desde el ERP en tiempo real. Mostrando datos históricos si existen.</p>
+                   </div>
+                </div>
+
                 <!-- Notes -->
                 <div v-if="order.notes" class="mb-4 p-3 rounded-xl bg-amber-50/50 border border-amber-100/50 flex gap-3 text-amber-800">
                    <Icon icon="mdi:note-text-outline" class="w-5 h-5 shrink-0 opacity-70 mt-0.5" />
@@ -309,7 +320,7 @@ const datePresets = [
   { key: 'all', label: 'Todo' },
 ]
 
-const toDateStr = (d: Date) => d.toISOString().split('T')[0]
+const toDateStr = (d: Date) => d.toISOString().split('T')[0] || ''
 
 const applyDatePreset = (key: string) => {
   activePreset.value = key
@@ -401,8 +412,24 @@ const exportCsv = async () => {
   }
 }
 
-const toggleOrder = (id: string) => {
-  expandedOrder.value = expandedOrder.value === id ? null : id
+const toggleOrder = async (id: string) => {
+  if (expandedOrder.value === id) {
+    expandedOrder.value = null
+    return
+  }
+
+  // Fetch full detail with ERP lines if available
+  const orderIdx = orders.value.findIndex(o => o.id === id)
+  if (orderIdx !== -1) {
+    try {
+      const { data } = await api.get(`/portal/orders/${id}`)
+      orders.value[orderIdx] = data.data
+    } catch (error) {
+      console.error('Error fetching full order detail:', error)
+    }
+  }
+
+  expandedOrder.value = id
 }
 
 const approveOrder = async (order: Order) => {

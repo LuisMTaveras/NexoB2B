@@ -173,7 +173,7 @@ const datePresets = [
   { key: 'all', label: 'Todo' },
 ]
 
-const toDateStr = (d: Date) => d.toISOString().split('T')[0]
+const toDateStr = (d: Date) => d.toISOString().split('T')[0] || ''
 
 const applyDatePreset = (key: string) => {
   activePreset.value = key

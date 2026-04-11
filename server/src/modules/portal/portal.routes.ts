@@ -8,9 +8,12 @@ import { logAction } from '../../lib/audit';
 import { logger } from '../../lib/logger';
 import { EmailService } from '../../lib/email.service';
 import { PdfService } from '../../lib/pdf.service';
+import { PortalService } from './portal.service';
 import { SmartBasketService } from './smartBasket.service';
 import { exportToCsv } from '../../utils/csvExport';
 import { NotificationService } from './notification.service';
+import { cache } from '../../lib/cache';
+
 
 const router = Router();
 
@@ -23,20 +26,7 @@ router.use(requireCustomerUser);
  * Returns current customer user profile and their company/customer context
  */
 router.get('/me', asyncHandler(async (req, res) => {
-  const customerUser = await prisma.customerUser.findUnique({
-    where: { id: req.user!.userId },
-    include: {
-      customer: {
-        include: {
-          company: {
-            include: { branding: true }
-          },
-          priceAssignment: true
-        }
-      }
-    }
-  });
-
+  const customerUser = await PortalService.getMe(req.user!.userId);
   if (!customerUser) return sendNotFound(res, 'Customer user not found');
   return sendSuccess(res, customerUser);
 }));
@@ -46,95 +36,8 @@ router.get('/me', asyncHandler(async (req, res) => {
  * Summary of stats for the customer portal
  */
 router.get('/dashboard', asyncHandler(async (req, res) => {
-  const customerUser = await prisma.customerUser.findUnique({
-    where: { id: req.user!.userId },
-    select: { customerId: true, role: true, customer: { select: { internalCode: true, creditLimit: true } } }
-  });
-
-  if (!customerUser) return sendNotFound(res);
-
-  const customerId = customerUser.customerId;
-  const companyId = req.companyId!;
-
-  // 1. Pending Balance (from AccountReceivable)
-  const receivables = await prisma.accountReceivable.findMany({
-    where: { customerId, companyId }
-  });
-  const balance = receivables.reduce((sum, r) => sum.add(r.balance), new Decimal(0));
-
-  // 2. Active Orders
-  const orderCount = await prisma.order.count({
-    where: { customerId, companyId, status: { in: ['OPEN', 'CONFIRMED', 'SHIPPED', 'PENDING_APPROVAL'] } }
-  });
-
-  // 3. Recent Invoices
-  const recentInvoices = await prisma.invoice.findMany({
-    where: { customerId, companyId },
-    orderBy: { date: 'desc' },
-    take: 5
-  });
-
-  // 4. Analytics (Admins only)
-  let analytics = null;
-  if (customerUser.role === 'ADMIN') {
-    // Last 6 months - Spend by Month
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    sixMonthsAgo.setHours(0, 0, 0, 0);
-
-    const orders = await prisma.order.findMany({
-      where: { 
-        customerId, 
-        companyId, 
-        status: { notIn: ['CANCELLED', 'REJECTED'] },
-        date: { gte: sixMonthsAgo }
-      },
-      select: { total: true, date: true, submittedById: true, submittedBy: { select: { firstName: true, lastName: true } } }
-    });
-
-    const monthlyData: Record<string, number> = {};
-    const userData: Record<string, { name: string, total: number }> = {};
-
-    // Initialize months
-    for (let i = 0; i < 6; i++) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const label = d.toLocaleDateString('es-DO', { month: 'short', year: '2-digit' });
-      monthlyData[label] = 0;
-    }
-
-    orders.forEach(o => {
-      const label = new Date(o.date).toLocaleDateString('es-DO', { month: 'short', year: '2-digit' });
-      if (monthlyData[label] !== undefined) {
-        monthlyData[label] += Number(o.total);
-      }
-
-      if (o.submittedById) {
-        if (!userData[o.submittedById]) {
-          userData[o.submittedById] = { 
-            name: `${o.submittedBy?.firstName} ${o.submittedBy?.lastName}`, 
-            total: 0 
-          };
-        }
-        userData[o.submittedById].total += Number(o.total);
-      }
-    });
-
-    analytics = {
-      spendByMonth: Object.entries(monthlyData).reverse().map(([label, total]) => ({ label, total })),
-      spendByUser: Object.values(userData).sort((a, b) => b.total - a.total).slice(0, 5)
-    };
-  }
-
-  return sendSuccess(res, {
-    customerCode: customerUser.customer?.internalCode || null,
-    creditLimit: customerUser.customer?.creditLimit || 0,
-    balance,
-    orderCount,
-    recentInvoices,
-    analytics
-  });
+  const stats = await PortalService.getDashboardStats(req.user!.userId, req.companyId!);
+  return sendSuccess(res, stats);
 }));
 
 /**
@@ -142,53 +45,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
  * Catalog with per-customer pricing
  */
 router.get('/catalog', asyncHandler(async (req, res) => {
-  const customerUser = await prisma.customerUser.findUnique({
-    where: { id: req.user!.userId },
-    include: {
-      customer: {
-        include: { priceAssignment: true }
-      }
-    }
-  });
-
-  if (!customerUser) return sendNotFound(res);
-
-  const companyId = req.companyId!;
-  const assignedPriceList = customerUser.customer.priceAssignment?.priceListId || 'LISTA_1';
-
-  // Fetch all active products with all their prices
-  const products = await prisma.product.findMany({
-    where: { companyId, isActive: true, isVisible: true },
-    include: {
-      priceSnapshots: true
-    }
-  });
-
-  // Map products to include their specific price with fallback logic
-  const catalog = products.map(p => {
-    // 1. Try to find the price for the assigned list
-    let priceInfo = p.priceSnapshots.find(s => s.priceListId === assignedPriceList);
-    
-    // 2. If not found and assigned list is not LISTA_1, fallback to LISTA_1
-    if (!priceInfo && assignedPriceList !== 'LISTA_1') {
-      priceInfo = p.priceSnapshots.find(s => s.priceListId === 'LISTA_1');
-    }
-
-    return {
-      id: p.id,
-      sku: p.sku,
-      name: p.name,
-      description: p.description,
-      imageUrl: p.imageUrl,
-      category: p.category,
-      brand: p.brand,
-      unit: p.unit,
-      stock: p.stock,
-      price: priceInfo?.price || 0,
-      currency: priceInfo?.currency || 'DOP'
-    };
-  });
-
+  const catalog = await PortalService.getCatalog(req.user!.userId, req.companyId!);
   return sendSuccess(res, catalog);
 }));
 
@@ -319,29 +176,11 @@ router.get('/orders', asyncHandler(async (req, res) => {
 
 /**
  * GET /api/portal/orders/:id
- * Fetch single order details
+ * Fetch single order details (supports ON_DEMAND ERP sync for lines)
  */
 router.get('/orders/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const customerUser = await prisma.customerUser.findUnique({
-    where: { id: req.user!.userId },
-    select: { customerId: true }
-  });
-
-  if (!customerUser) return sendNotFound(res);
-
-  const order = await prisma.order.findFirst({
-    where: { 
-      id, 
-      customerId: customerUser.customerId,
-      companyId: req.companyId!
-    },
-    include: {
-      items: true,
-      submittedBy: { select: { firstName: true, lastName: true } },
-      approvedBy: { select: { firstName: true, lastName: true } }
-    }
-  });
+  const order = await PortalService.getOrderDetail(id, req.user!.userId, req.companyId!);
 
   if (!order) return sendNotFound(res, 'Pedido no encontrado');
 
@@ -472,139 +311,20 @@ router.get('/search', asyncHandler(async (req, res) => {
  * Submit shopping cart and create an open Order
  */
 router.post('/orders', asyncHandler(async (req, res) => {
-  const { items, notes } = req.body;
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ success: false, error: 'El carrito está vacío' });
+  try {
+    const order = await PortalService.submitOrder(req.user!.userId, req.companyId!, req.body.items, req.body.extendedFields, req.body.notes, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+    return sendSuccess(res, order);
+  } catch (err: any) {
+    return res.status(err.message === 'El carrito está vacío' ? 400 : 500).json({ success: false, error: err.message });
   }
+}));
 
-  const customerUser = await prisma.customerUser.findUnique({
-    where: { id: req.user!.userId },
-    select: { customerId: true, role: true, requiresApproval: true, orderLimit: true, customer: { select: { internalCode: true } }, firstName: true, lastName: true, email: true }
-  });
-
-  if (!customerUser) return sendNotFound(res, 'Usuario de cliente no encontrado');
-
-  const customerId = customerUser.customerId;
-  const companyId = req.companyId!;
-
-  // Calcular totales
-  let total = new Decimal(0);
-  const currency = items[0]?.currency || 'DOP';
-
-  const orderItemsData = items.map((item: any) => {
-    const qty = new Decimal(item.quantity);
-    const price = new Decimal(item.price);
-    const rowTotal = qty.mul(price);
-    total = total.add(rowTotal);
-
-    return {
-      productId: item.id,
-      sku: item.sku,
-      name: item.name,
-      quantity: qty,
-      unitPrice: price,
-      total: rowTotal
-    };
-  });
-
-  // Determinar status basado en rol y configuración:
-  // - Los Buyers SIEMPRE requieren aprobación.
-  // - Los Admins SOLO si tienen el flag requiresApproval (control de gastos).
-  // - CUALQUIERA si el total supera su límite de gasto (spending limit).
-  const isOverLimit = customerUser.orderLimit !== null && total.gt(customerUser.orderLimit);
-  const needsApproval =
-    customerUser.role === 'BUYER' || customerUser.requiresApproval || isOverLimit;
-  const orderStatus = needsApproval ? 'PENDING_APPROVAL' : 'OPEN';
-
-  // Crear id consecutivo interno básico temporal
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const randNum = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  const numberStr = `ORD-${dateStr}-${randNum}`;
-
-  const order = await prisma.order.create({
-    data: {
-      companyId,
-      customerId,
-      submittedById: req.user!.userId,
-      number: numberStr,
-      date: new Date(),
-      status: orderStatus,
-      total,
-      currency,
-      notes,
-      items: {
-        create: orderItemsData
-      }
-    },
-    include: {
-      items: true
-    }
-  });
-
-  // Notificar a los Administradores si el pedido requiere aprobación
-  if (orderStatus === 'PENDING_APPROVAL') {
-    // In-App Notification
-    await NotificationService.notifyAdmins(
-      companyId,
-      'ORDER_STATUS',
-      'Nuevo Pedido por Autorizar ⚠️',
-      `El comprador ${customerUser.firstName} ${customerUser.lastName} ha creado el pedido ${order.number} por ${order.total} ${order.currency}.`,
-      `/portal/orders`
-    );
-
-    (async () => {
-      try {
-        const mailer = await EmailService.getCompanyTransporter(companyId);
-        if (mailer) {
-          const admins = await prisma.customerUser.findMany({
-            where: { customerId, role: 'ADMIN', status: 'ACTIVE' },
-            select: { email: true }
-          });
-          
-          for (const admin of admins) {
-            await mailer.transporter.sendMail({
-              from: mailer.from,
-              to: admin.email,
-              subject: `⚠️ Acción Requerida: Pedido ${order.number} por autorizar`,
-              html: EmailService.getApprovalRequiredTemplate({
-                companyName: customerUser.customer?.internalCode || 'NexoB2B',
-                orderNumber: order.number,
-                buyerName: `${customerUser.firstName} ${customerUser.lastName}`,
-                total: total.toString(),
-                currency
-              })
-            });
-          }
-        }
-      } catch (err) {
-        logger.error('Error sending approval notification emails:', err);
-      }
-    })();
-  }
-
-  // Audit log
-  await logAction({
-    companyId,
-    userEmail: customerUser.email,
-    action: 'ORDER_SUBMITTED',
-    resource: 'Order',
-    resourceId: order.id,
-    ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    details: {
-      orderNumber: order.number,
-      status: orderStatus,
-      total: order.total,
-      currency: order.currency,
-      submittedBy: {
-        name: `${customerUser.firstName} ${customerUser.lastName}`,
-        email: customerUser.email,
-        role: customerUser.role,
-      }
-    }
-  });
-
-  return sendSuccess(res, order);
+router.get('/checkout-config', asyncHandler(async (req, res) => {
+  const config = await PortalService.getCheckoutConfig(req.companyId!);
+  return sendSuccess(res, config);
 }));
 
 /**

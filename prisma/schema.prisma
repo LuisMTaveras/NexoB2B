@@ -49,6 +49,27 @@ enum SyncStatus {
   FAILED
 }
 
+enum SyncDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum OrderSyncStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_ERP
+  SENDING_TO_ERP
+  SYNCED
+  PENDING_VERIFICATION
+  SYNC_FAILED
+  QUEUED_RETRY
+}
+
+enum DetailFetchOn {
+  ON_BATCH
+  ON_DEMAND
+}
+
 enum SyncResource {
   CUSTOMERS
   PRODUCTS
@@ -58,6 +79,7 @@ enum SyncResource {
   RECEIVABLES
   ORDERS
   SMART_BASKET
+  PAYMENTS
 }
 
 enum CustomerStatus {
@@ -267,11 +289,19 @@ model IntegrationMapping {
   integrationId    String
   resource         SyncResource
   externalEndpoint String
-  fieldMappings    Json // { internalField: externalField | "=CONSTANT" }
-  paginationConfig Json? // PaginationConfig: { type, pageParam, pageSizeParam, pageSize, dataPath, totalPath }
-  queryParams      Json? // extra query params
+  direction        SyncDirection @default(INBOUND)
+  method           String        @default("GET") // GET for inbound, POST/PUT for outbound
+  fieldMappings    Json // Inbound: ERP -> Canonical, Outbound: Canonical -> ERP
+  transforms       Json? // { field: { map: {}, format: "" } }
+  paginationConfig Json? // Inbound only
+  extendedFieldsDef Json? // { field: { label, type, required, options[] } }
+  detailEndpoint   String? // Path with {externalId} for on-demand fetch
+  detailDataPath   String? // Path to the lines array in detail response (e.g., 'products')
+  detailFetchOn    DetailFetchOn @default(ON_BATCH)
+  detailFieldMappings Json? // For order lines / detail entities
+  successIdField   String? // e.g. "erp_number"
   isActive         Boolean      @default(true)
-  // ─── Scheduling ──────────────────────────────────────
+  // ─── Scheduling (Inbound Only) ──────────────────────
   isScheduled      Boolean      @default(false)
   syncCron         String? // cron expression e.g. "0 2 * * *" = daily at 2 AM
   syncInterval     String? // human-readable interval e.g. "every 6 hours"
@@ -282,7 +312,7 @@ model IntegrationMapping {
 
   integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
-  @@unique([integrationId, resource])
+  @@unique([integrationId, resource, direction])
   @@index([integrationId])
   @@index([isScheduled, nextRunAt]) // for efficient scheduler queries
 }
@@ -291,6 +321,7 @@ model IntegrationSyncJob {
   id            String       @id @default(cuid())
   integrationId String
   resource      SyncResource
+  direction     SyncDirection @default(INBOUND)
   status        SyncStatus   @default(PENDING)
   startedAt     DateTime?
   completedAt   DateTime?
@@ -336,9 +367,10 @@ model Customer {
   portalEnabled Boolean        @default(false)
   maxUsers      Int            @default(5)
   creditLimit   Decimal?       @db.Decimal(18, 2) @default(0)
-  syncedAt      DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  erpMetadata     Json? // metadata for level 2 resolution
+  syncedAt        DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   users           CustomerUser[]
@@ -520,9 +552,12 @@ model Order {
   total         Decimal     @db.Decimal(18, 2)
   currency      String      @default("DOP")
   notes         String?
-  syncedAt      DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  syncStatus     OrderSyncStatus @default(DRAFT)
+  extendedFields Json? // level 3 resolution fields
+  idempotencyKey String?
+  syncedAt       DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   submittedById  String?
   approvedById   String?
   approvedAt     DateTime?

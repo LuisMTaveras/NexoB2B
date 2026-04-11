@@ -9,6 +9,8 @@ import {
   generateOrderCode,
   generateInvoiceCode,
 } from '../../lib/codeGenerator';
+import { cache } from '../../lib/cache';
+
 
 // Max concurrent DB writes per batch
 const DB_CONCURRENCY = 10;
@@ -67,6 +69,21 @@ function resolveField(record: Record<string, unknown>, externalField: string): u
     const fields = parts.slice(0, -1);
     const separator = parts[parts.length - 1] ?? ' ';
     return fields.map((f) => String(resolvePath(record, f.trim()) ?? '')).join(separator);
+  }
+
+  /**
+   * Find in sub-array: "__find:listPath,searchField,searchValue,targetField"
+   * Example: Get RNC from addresses array where type is 'BILLING'
+   * "__find:ExtraData.Addresses,Type,BILLING,TaxID"
+   */
+  if (externalField.startsWith('__find:')) {
+    const [path, searchField, searchValue, targetField] = externalField.slice(7).split(',');
+    const list = resolvePath(record, path.trim());
+    if (Array.isArray(list)) {
+      const match = list.find(item => String(resolvePath(item, searchField.trim())) === searchValue.trim());
+      return match ? resolvePath(match, targetField.trim()) : undefined;
+    }
+    return undefined;
   }
 
   return resolvePath(record, externalField);
@@ -637,6 +654,11 @@ export async function runSyncJob(
       // Update integration lastSyncAt
       await prisma.integration.update({ where: { id: integrationId }, data: { lastSyncAt: new Date() } });
 
+      // Invalidate catalog cache for this company
+      if (['PRODUCTS', 'PRICE_LISTS', 'PRICE_ASSIGNMENTS', 'ALL'].includes(mapping.resource)) {
+        await cache.clearPattern(`portal:catalog:${companyId}:*`);
+      }
+
       await prisma.integrationSyncLog.create({
         data: {
           jobId, level: 'info',
@@ -661,7 +683,7 @@ export async function runSyncJob(
         if (integration) {
           // Find an admin that has an email configuration set up to act as the sender
           const senderAdmin = await prisma.internalUser.findFirst({
-            where: { companyId, role: 'ADMIN', status: 'ACTIVE', emailConfig: { isNot: null } },
+            where: { companyId, role: { name: 'ADMIN' }, status: 'ACTIVE', emailConfig: { isNot: null } },
             select: { id: true }
           });
 
@@ -676,7 +698,7 @@ export async function runSyncJob(
 
             // Get all active admins to receive the notification
             const allAdmins = await prisma.internalUser.findMany({
-               where: { companyId, role: 'ADMIN', status: 'ACTIVE' },
+               where: { companyId, role: { name: 'ADMIN' }, status: 'ACTIVE' },
                select: { email: true }
             });
 

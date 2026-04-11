@@ -85,15 +85,8 @@ router.get('/export', asyncHandler(async (req, res) => {
  * GET /api/orders/:id
  */
 router.get('/:id', asyncHandler(async (req, res) => {
-  const order = await prisma.order.findFirst({
-    where: { id: req.params.id, companyId: req.companyId! },
-    include: {
-      customer: true,
-      submittedBy: { select: { firstName: true, lastName: true, email: true } },
-      items: true
-    } as any
-
-  });
+  const { OrdersService } = await import('./orders.service');
+  const order = await OrdersService.getById(req.params.id, req.companyId!);
 
   if (!order) return sendNotFound(res, 'Pedido no encontrado');
   return sendSuccess(res, order);

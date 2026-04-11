@@ -179,6 +179,31 @@
               <span class="text-sm font-bold text-slate-500">Total Estimado</span>
               <span class="text-2xl font-black text-slate-900 tracking-tighter">{{ formatCurrency(cartTotal) }}</span>
            </div>
+
+           <!-- Extended Fields (Level 3 Dynamic Inputs) -->
+           <div v-if="Object.keys(checkoutConfig.extendedFields).length" class="space-y-4 mb-6 pt-4 border-t border-slate-200">
+              <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Información Requerida ERP</p>
+              <div v-for="(field, key) in checkoutConfig.extendedFields" :key="key" class="space-y-1">
+                 <label class="text-[10px] font-bold text-slate-600 uppercase">{{ (field as any).label }} <span v-if="(field as any).required" class="text-red-500">*</span></label>
+                 
+                 <select 
+                   v-if="(field as any).type === 'select'"
+                   v-model="extendedFields[key]"
+                   class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                 >
+                   <option value="" disabled>Seleccione una opción</option>
+                   <option v-for="opt in (field as any).options" :key="opt" :value="opt">{{ opt }}</option>
+                 </select>
+
+                 <input 
+                   v-else
+                   :type="(field as any).type || 'text'"
+                   v-model="extendedFields[key]"
+                   :placeholder="(field as any).placeholder || ''"
+                   class="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                 />
+              </div>
+           </div>
            <button 
              @click="submitOrder"
              :disabled="isSubmitting"
@@ -223,115 +248,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
-import api from '@/services/api'
-import { useUiStore } from '@/stores/ui'
 import { formatCurrency, formatNumber } from '@/utils/formatters'
-import type { Product, SmartBasketSuggestion } from '@/types/portal'
 import SmartBasket from '../components/SmartBasket.vue'
+import { useCatalog } from '../composables/useCatalog'
 
-const ui = useUiStore()
+const {
+  loading, search, showCart, showToast, isSubmitting, lastAddedItem, cartItems,
+  categories, filteredProducts, cartTotal,
+  fetchData, fetchCheckoutConfig, addToCart, updateQty, removeFromCart, addAllToCart, submitOrder,
+  checkoutConfig, extendedFields
+} = useCatalog()
 
-const products = ref<Product[]>([])
-const loading = ref(true)
-const search = ref('')
-const selectedCategory = ref('Todos')
-const showCart = ref(false)
-const cartItems = ref<(Product & { quantity: number })[]>([])
-const lastAddedItem = ref<string | null>(null)
-const showToast = ref(false)
-const animatingCart = ref(false)
-const isSubmitting = ref(false)
-
-const categories = computed(() => {
-  const cats = ['Todos', ...new Set(products.value.map(p => p.category).filter(Boolean))]
-  return cats as string[]
+onMounted(() => {
+  fetchData()
+  fetchCheckoutConfig()
 })
-
-const filteredProducts = computed(() => {
-  return products.value.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.value.toLowerCase()) || 
-                          p.sku.toLowerCase().includes(search.value.toLowerCase())
-    const matchesCategory = selectedCategory.value === 'Todos' || p.category === selectedCategory.value
-    return matchesSearch && matchesCategory
-  })
-})
-
-const cartTotal = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-})
-
-const fetchData = async () => {
-  try {
-    const { data } = await api.get('/portal/catalog')
-    products.value = data.data
-  } catch (err) {
-    console.error('Error loading catalog:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-const addToCart = (product: Product) => {
-  const existing = cartItems.value.find(i => i.id === product.id)
-  if (existing) {
-    existing.quantity++
-  } else {
-    cartItems.value.push({ ...product, quantity: 1 })
-  }
-  
-  // Feedback visual sin abrir el carrito
-  lastAddedItem.value = product.name
-  showToast.value = true
-  animatingCart.value = true
-  
-  // Limpiar estados de animación
-  setTimeout(() => { showToast.value = false }, 3000)
-  setTimeout(() => { animatingCart.value = false }, 1000)
-}
-
-const updateQty = (id: string, delta: number) => {
-  const item = cartItems.value.find(i => i.id === id)
-  if (item) {
-    item.quantity = Math.max(1, item.quantity + delta)
-  }
-}
-
-const removeFromCart = (id: string) => {
-  cartItems.value = cartItems.value.filter(i => i.id !== id)
-}
-
-const addAllToCart = (suggestions: SmartBasketSuggestion[]) => {
-  suggestions.forEach(s => {
-    const existing = cartItems.value.find(i => i.id === s.id)
-    const qty = Math.ceil(s.suggestedQuantity || 1)
-    if (existing) {
-      existing.quantity = Math.max(existing.quantity, qty)
-    } else {
-      cartItems.value.push({ ...s, quantity: qty })
-    }
-  })
-  showCart.value = true
-  ui.alert('Smart Basket', `${suggestions.length} productos añadidos basándose en tus patrones de compra.`, 'success')
-}
-
-const submitOrder = async () => {
-  if (!cartItems.value.length) return
-  isSubmitting.value = true
-  try {
-    await api.post('/portal/orders', { items: cartItems.value, notes: '' })
-    cartItems.value = []
-    showCart.value = false
-    ui.alert('Pedido Confirmado', 'Su pedido B2B se ha guardado correctamente. Puede ver el detalle en la pestaña de Órdenes.', 'success')
-  } catch (err: unknown) {
-    const apiError = err as { response?: { data?: { error?: string } } }
-    ui.alert('Error', apiError.response?.data?.error || 'No se pudo procesar el pedido.', 'error')
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-onMounted(fetchData)
 </script>
 

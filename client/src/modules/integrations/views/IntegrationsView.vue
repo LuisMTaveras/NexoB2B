@@ -355,66 +355,133 @@
               <div v-if="expandedResource === resource" class="p-4 space-y-4 border-t border-[var(--color-brand-200)]">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="label flex items-center justify-between">
-                      Endpoint del ERP
+                    <label class="label">Dirección</label>
+                    <div class="flex bg-slate-100 p-1 rounded-xl">
                       <button 
-                        v-if="mappingForm[resource].externalEndpoint"
-                        @click="suggestMappings(resource)"
-                        class="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors px-2 py-1 bg-indigo-50 rounded-lg border border-indigo-100"
-                        :disabled="suggesting[resource]"
-                      >
-                         <Icon :icon="suggesting[resource] ? 'mdi:loading' : 'mdi:auto-fix'" :class="{'animate-spin': suggesting[resource]}" />
-                         {{ suggesting[resource] ? 'Analizando...' : 'Sugerir con IA' }}
-                      </button>
-                    </label>
-                    <input v-model="mappingForm[resource].externalEndpoint" class="input font-mono text-sm" :placeholder="`/api/${resource.toLowerCase()}`" />
+                        @click="mappingForm[resource].direction = 'INBOUND'; mappingForm[resource].method = 'GET'"
+                        class="flex-1 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all"
+                        :class="mappingForm[resource].direction === 'INBOUND' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'"
+                      >Entrada (ERP → Nexo)</button>
+                      <button 
+                        @click="mappingForm[resource].direction = 'OUTBOUND'; mappingForm[resource].method = 'POST'"
+                        class="flex-1 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all"
+                        :class="mappingForm[resource].direction === 'OUTBOUND' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'"
+                      >Salida (Nexo → ERP)</button>
+                    </div>
                   </div>
                   <div>
-                    <label class="label">Tipo de paginación</label>
-                    <select v-model="mappingForm[resource].paginationType" class="input">
-                      <option value="none">Sin paginación</option>
-                      <option value="page">Por página (page/limit)</option>
-                      <option value="offset">Por offset</option>
-                      <option value="cursor">Por cursor</option>
-                    </select>
+                    <label class="label">Método HTTP / Endpoint</label>
+                    <div class="flex gap-2">
+                       <select v-model="mappingForm[resource].method" class="input w-32 font-bold text-xs">
+                          <option value="GET">GET</option>
+                          <option value="POST">POST</option>
+                          <option value="PUT">PUT</option>
+                          <option value="PATCH">PATCH</option>
+                       </select>
+                       <input v-model="mappingForm[resource].externalEndpoint" class="input font-mono text-sm flex-1" :placeholder="`/api/${resource.toLowerCase()}`" />
+                    </div>
                   </div>
-                  <template v-if="mappingForm[resource].paginationType !== 'none'">
-                    <div v-if="mappingForm[resource].paginationType === 'page'">
-                      <label class="label">Param de página</label>
-                      <input v-model="mappingForm[resource].pageParam" class="input text-sm" placeholder="page" />
-                    </div>
-                    <div v-if="mappingForm[resource].paginationType === 'offset'">
-                      <label class="label">Param de offset (Skip)</label>
-                      <input v-model="mappingForm[resource].offsetParam" class="input text-sm" placeholder="skip" />
-                    </div>
-                    <div v-if="mappingForm[resource].paginationType === 'cursor'">
-                      <label class="label">Param de cursor</label>
-                      <input v-model="mappingForm[resource].cursorParam" class="input text-sm" placeholder="cursor" />
-                    </div>
-                    <div v-if="mappingForm[resource].paginationType === 'cursor'">
-                      <label class="label">Ruta del siguiente cursor</label>
-                      <input v-model="mappingForm[resource].nextCursorPath" class="input text-sm font-mono" placeholder="meta.next_cursor" />
-                    </div>
+                  <div v-if="mappingForm[resource].direction === 'OUTBOUND'">
+                    <label class="label">Campo ID Éxito (Respuesta ERP)</label>
+                    <input v-model="mappingForm[resource].successIdField" class="input text-sm font-mono" placeholder="Ej: documento_numero" />
+                  </div>
+                  <div v-if="mappingForm[resource].direction === 'INBOUND'" class="col-span-2 grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                     <div>
-                      <label class="label">Param de tamaño (Limit)</label>
-                      <input v-model="mappingForm[resource].pageSizeParam" class="input text-sm" placeholder="limit" />
+                      <label class="label">Tipo de paginación</label>
+                      <select v-model="mappingForm[resource].paginationConfig.type" class="input">
+                        <option value="none">Sin paginación</option>
+                        <option value="page">Por página (page/limit)</option>
+                        <option value="offset">Por offset</option>
+                        <option value="cursor">Por cursor</option>
+                      </select>
                     </div>
-                    <div>
-                      <label class="label">Registros por página</label>
-                      <input v-model.number="mappingForm[resource].pageSize" type="number" class="input text-sm" placeholder="100" />
+                    
+                    <template v-if="mappingForm[resource].paginationConfig.type !== 'none'">
+                      <div v-if="mappingForm[resource].paginationConfig.type === 'page'">
+                        <label class="label">Param de página</label>
+                        <input v-model="mappingForm[resource].paginationConfig.pageParam" class="input text-sm" placeholder="page" />
+                      </div>
+                      <div v-if="mappingForm[resource].paginationConfig.type === 'offset'">
+                        <label class="label">Param de offset (Skip)</label>
+                        <input v-model="mappingForm[resource].paginationConfig.offsetParam" class="input text-sm" placeholder="skip" />
+                      </div>
+                      <div v-if="mappingForm[resource].paginationConfig.type === 'cursor'">
+                        <label class="label">Param de cursor</label>
+                        <input v-model="mappingForm[resource].paginationConfig.cursorParam" class="input text-sm" placeholder="cursor" />
+                      </div>
+                      <div>
+                        <label class="label">Param de tamaño (Limit)</label>
+                        <input v-model="mappingForm[resource].paginationConfig.pageSizeParam" class="input text-sm" placeholder="limit" />
+                      </div>
+                      <div>
+                        <label class="label">Ruta del array en respuesta</label>
+                        <input v-model="mappingForm[resource].paginationConfig.dataPath" class="input font-mono text-sm" placeholder="data.results" />
+                      </div>
+                    </template>
+
+                    <!-- On-Demand Detailed Sync (Level 3 Integration) -->
+                    <div class="col-span-2 pt-4 border-t border-slate-100">
+                      <div class="flex items-center justify-between mb-3">
+                        <label class="label mb-0 flex items-center gap-2">
+                          <Icon icon="mdi:lightning-bolt" class="text-amber-500 w-4 h-4" />
+                          Sincronización de Detalle (Líneas)
+                        </label>
+                        <div class="flex bg-slate-100 p-1 rounded-lg">
+                          <button 
+                            @click="mappingForm[resource].detailFetchOn = 'ON_BATCH'"
+                            class="px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all"
+                            :class="mappingForm[resource].detailFetchOn === 'ON_BATCH' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'"
+                          >En Lote</button>
+                          <button 
+                            @click="mappingForm[resource].detailFetchOn = 'ON_DEMAND'"
+                            class="px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all"
+                            :class="mappingForm[resource].detailFetchOn === 'ON_DEMAND' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-400'"
+                          >Bajo Demanda</button>
+                        </div>
+                      </div>
+
+                      <div v-if="mappingForm[resource].detailFetchOn === 'ON_DEMAND'" class="space-y-4 bg-amber-50/50 p-4 rounded-xl border border-amber-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Endpoint Detalle ERP</label>
+                                <input 
+                                  v-model="mappingForm[resource].detailEndpoint" 
+                                  class="input text-sm font-mono placeholder:text-slate-300 bg-white" 
+                                  placeholder="/api/pedidos/{externalId}" 
+                                />
+                                <p class="text-[9px] text-amber-700/60 mt-1 italic">Usa {externalId} como placeholder.</p>
+                              </div>
+
+                              <div class="space-y-1">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Ruta del array de líneas (opcional)</label>
+                                <input 
+                                  v-model="mappingForm[resource].detailDataPath" 
+                                  class="input text-sm font-mono placeholder:text-slate-300 bg-white" 
+                                  placeholder="products" 
+                                />
+                                <p class="text-[9px] text-amber-700/60 mt-1 italic">Ej: products (si están anidados)</p>
+                              </div>
+
+                              <div class="space-y-2 col-span-1 md:col-span-2">
+                                  <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Mapeo de Líneas</label>
+                                  <div class="space-y-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                                    <div v-for="(extField, intField) in mappingForm[resource].detailFields" :key="intField" class="flex items-center gap-2">
+                                      <div class="w-20 text-[9px] font-mono text-slate-400 truncate">{{ intField }}</div>
+                                      <input v-model="mappingForm[resource].detailFields[intField]" class="input py-1 text-[10px] font-mono bg-white flex-1" :placeholder="intField" />
+                                    </div>
+                                  </div>
+                              </div>
+                           </div>
+                      </div>
+                      <div v-else class="text-[10px] text-slate-400 italic bg-slate-50 p-3 rounded-lg border border-dashed border-slate-200">
+                        Los detalles se sincronizan en la misma llamada que la lista (Bulk).
+                      </div>
                     </div>
-                    <div>
-                      <label class="label">Ruta del array en respuesta</label>
-                      <input v-model="mappingForm[resource].dataPath" class="input font-mono text-sm" placeholder="data.results" />
-                    </div>
-                    <div>
-                      <label class="label">Ruta del total en respuesta</label>
-                      <input v-model="mappingForm[resource].totalPath" class="input font-mono text-sm" placeholder="total" />
-                    </div>
-                  </template>
+                  </div>
                 </div>
 
-                <div>
+                <!-- Fields Mapping -->
+                <div class="space-y-4">
                   <div class="flex items-center justify-between mb-2">
                     <label class="label mb-0">Mapeo de campos</label>
                     <div class="text-[10px] text-[var(--color-brand-400)] text-right group relative z-50">
@@ -452,6 +519,32 @@
                   <button class="text-xs text-[var(--color-accent-500)] mt-2 hover:underline flex items-center gap-1" @click="addCustomField(resource)">
                     <Icon icon="mdi:plus" class="w-3 h-3" /> Agregar campo personalizado
                   </button>
+                </div>
+
+                <!-- Transforms (Advanced Transformation Logic) -->
+                <div>
+                  <label class="label">Transformaciones (JSON)</label>
+                  <textarea 
+                    v-model="mappingForm[resource].transformsRaw" 
+                    class="input font-mono text-[10px]" 
+                    rows="3" 
+                    placeholder='{ "status": { "map": { "P": "PAID" } } }'
+                  ></textarea>
+                </div>
+
+                <!-- Extended Fields (Level 3 - Portal Inputs) - ONLY FOR OUTBOUND ORDERS -->
+                <div v-if="mappingForm[resource].direction === 'OUTBOUND' && resource === 'ORDERS'" class="p-4 bg-orange-50 border border-orange-100 rounded-xl space-y-3">
+                  <div class="flex items-center gap-2">
+                    <Icon icon="mdi:form-select" class="w-4 h-4 text-orange-600" />
+                    <span class="text-xs font-bold text-orange-900 uppercase">Campos Extendidos del Portal</span>
+                  </div>
+                  <p class="text-[10px] text-orange-700">Define campos adicionales que el cliente debe completar al hacer el pedido.</p>
+                  <textarea 
+                    v-model="mappingForm[resource].extendedFieldsRaw" 
+                    class="input bg-white font-mono text-[10px]" 
+                    rows="3" 
+                    placeholder='{ "nro_oc": { "label": "Orden de Compra", "type": "text", "required": true } }'
+                  ></textarea>
                 </div>
 
                 <!-- ─── Scheduling Section (Premium Corporate) ─────────────────────────── -->
@@ -534,7 +627,7 @@
                 </div>
 
 
-                <div class="flex justify-end gap-2">
+                <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
                   <button
                     v-if="getMappingForResource(resource)"
                     class="btn btn-secondary btn-sm text-[var(--color-danger-500)]"
@@ -636,12 +729,12 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { Icon } from '@iconify/vue'
 import {
-  integrationsApi, RESOURCE_LABELS, RESOURCE_ICONS, DEFAULT_FIELD_MAPPINGS,
+  integrationsApi, RESOURCE_LABELS, RESOURCE_ICONS, DEFAULT_FIELD_MAPPINGS, DEFAULT_DETAIL_MAPPINGS,
   type Integration, type SyncResource, type SyncJob
 } from '@/services/integrations'
 
 // ─── State ───────────────────────────────────────────────────────
-const ALL_RESOURCES: SyncResource[] = ['PRODUCTS', 'CUSTOMERS', 'PRICE_LISTS', 'PRICE_ASSIGNMENTS', 'INVOICES', 'RECEIVABLES', 'ORDERS']
+const ALL_RESOURCES: SyncResource[] = ['PRODUCTS', 'CUSTOMERS', 'PRICE_LISTS', 'PRICE_ASSIGNMENTS', 'INVOICES', 'RECEIVABLES', 'ORDERS', 'PAYMENTS']
 const authLabels: Record<string, string> = { API_KEY: 'API Key', BEARER_TOKEN: 'Bearer Token', BASIC_AUTH: 'Basic Auth', OAUTH2: 'OAuth 2.0' }
 
 const auth = useAuthStore()
@@ -818,30 +911,46 @@ async function deleteIntegration(integration: Integration) {
 }
 
 function openMappingModal(integration: Integration) {
-  selectedIntegration.value = integration
-  ALL_RESOURCES.forEach((r) => {
-    const existing = integration.mappings.find((m) => m.resource === r)
-    mappingForm[r] = {
-      externalEndpoint: existing?.externalEndpoint ?? '',
-      paginationType: (existing?.paginationConfig as any)?.type ?? 'none',
-      pageParam: (existing?.paginationConfig as any)?.pageParam ?? 'page',
-      offsetParam: (existing?.paginationConfig as any)?.offsetParam ?? 'skip',
-      cursorParam: (existing?.paginationConfig as any)?.cursorParam ?? 'cursor',
-      nextCursorPath: (existing?.paginationConfig as any)?.nextCursorPath ?? '',
-      pageSizeParam: (existing?.paginationConfig as any)?.pageSizeParam ?? 'limit',
-      pageSize: (existing?.paginationConfig as any)?.pageSize ?? 100,
-      dataPath: (existing?.paginationConfig as any)?.dataPath ?? '',
-      totalPath: (existing?.paginationConfig as any)?.totalPath ?? '',
-      fields: { ...DEFAULT_FIELD_MAPPINGS[r], ...existing?.fieldMappings },
-      // Scheduling
-      isScheduled: (existing as any)?.isScheduled ?? false,
-      syncCron: (existing as any)?.syncCron ?? '',
-      syncInterval: (existing as any)?.syncInterval ?? '',
-      syncCronPreset: (existing as any)?.syncCron ?? 'custom',
-    }
-  })
-  expandedResource.value = null
-  showMappingModal.value = true
+  try {
+    selectedIntegration.value = integration
+    ALL_RESOURCES.forEach((r) => {
+      const existing = integration.mappings.find((m) => m.resource === r)
+      mappingForm[r] = {
+        direction: existing?.direction ?? 'INBOUND',
+        method: existing?.method ?? 'GET',
+        externalEndpoint: existing?.externalEndpoint ?? '',
+        successIdField: existing?.successIdField ?? '',
+        paginationConfig: {
+          type: (existing?.paginationConfig as any)?.type ?? 'none',
+          pageParam: (existing?.paginationConfig as any)?.pageParam ?? 'page',
+          offsetParam: (existing?.paginationConfig as any)?.offsetParam ?? 'skip',
+          cursorParam: (existing?.paginationConfig as any)?.cursorParam ?? 'cursor',
+          nextCursorPath: (existing?.paginationConfig as any)?.nextCursorPath ?? '',
+          pageSizeParam: (existing?.paginationConfig as any)?.pageSizeParam ?? 'limit',
+          pageSize: (existing?.paginationConfig as any)?.pageSize ?? 100,
+          dataPath: (existing?.paginationConfig as any)?.dataPath ?? '',
+          totalPath: (existing?.paginationConfig as any)?.totalPath ?? '',
+        },
+        fields: { ...(DEFAULT_FIELD_MAPPINGS[r] || {}), ...existing?.fieldMappings },
+        transformsRaw: existing?.transforms ? JSON.stringify(existing.transforms, null, 2) : '',
+        extendedFieldsRaw: existing?.extendedFieldsDef ? JSON.stringify(existing.extendedFieldsDef, null, 2) : '',
+        detailEndpoint: existing?.detailEndpoint ?? '',
+        detailDataPath: (existing as any)?.detailDataPath ?? '',
+        detailFetchOn: (existing as any)?.detailFetchOn ?? 'ON_BATCH',
+        detailFields: { ...(DEFAULT_DETAIL_MAPPINGS[r] || {}), ...existing?.detailFieldMappings },
+        // Scheduling
+        isScheduled: (existing as any)?.isScheduled ?? false,
+        syncCron: (existing as any)?.syncCron ?? '',
+        syncInterval: (existing as any)?.syncInterval ?? '',
+        syncCronPreset: (existing as any)?.syncCron ?? 'custom',
+      }
+    })
+    expandedResource.value = null
+    showMappingModal.value = true
+  } catch (err: any) {
+    console.error('Error opening mapping modal:', err)
+    ui.alert('Error', 'No se pudo abrir el configurador de mappings: ' + err.message, 'error')
+  }
 }
 
 function getMappingForResource(resource: SyncResource) {
@@ -862,22 +971,32 @@ async function saveMapping(resource: SyncResource) {
   savingMapping[resource] = true
   const form = mappingForm[resource]
   try {
-    const paginationConfig = form.paginationType === 'none' ? undefined : {
-      type: form.paginationType,
-      pageParam: form.pageParam,
-      offsetParam: form.offsetParam,
-      cursorParam: form.cursorParam,
-      nextCursorPath: form.nextCursorPath || undefined,
-      pageSizeParam: form.pageSizeParam,
-      pageSize: form.pageSize,
-      dataPath: form.dataPath || undefined,
-      totalPath: form.totalPath || undefined,
+    let transforms = undefined
+    if (form.transformsRaw?.trim()) {
+      try { transforms = JSON.parse(form.transformsRaw) }
+      catch (e) { throw new Error('Cuerpo de transformaciones inválido (JSON)') }
     }
+
+    let extendedFieldsDef = undefined
+    if (form.extendedFieldsRaw?.trim()) {
+      try { extendedFieldsDef = JSON.parse(form.extendedFieldsRaw) }
+      catch (e) { throw new Error('Definición de campos extendidos inválida (JSON)') }
+    }
+
     await integrationsApi.createMapping(selectedIntegration.value.id, {
       resource,
+      direction: form.direction,
+      method: form.method,
       externalEndpoint: form.externalEndpoint,
+      successIdField: form.successIdField || undefined,
       fieldMappings: form.fields,
-      paginationConfig,
+      transforms,
+      extendedFieldsDef,
+      paginationConfig: form.direction === 'INBOUND' ? form.paginationConfig : undefined,
+      detailEndpoint: form.direction === 'INBOUND' ? (form.detailEndpoint || undefined) : undefined,
+      detailDataPath: form.direction === 'INBOUND' ? (form.detailDataPath || undefined) : undefined,
+      detailFetchOn: form.direction === 'INBOUND' ? form.detailFetchOn : 'ON_BATCH',
+      detailFieldMappings: form.direction === 'INBOUND' ? form.detailFields : undefined,
       isScheduled: form.isScheduled ?? false,
       syncCron: form.isScheduled && form.syncCron ? form.syncCron : null,
       syncInterval: form.isScheduled && form.syncCron ? describeCron(form.syncCron) : null,

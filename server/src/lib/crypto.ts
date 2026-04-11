@@ -20,8 +20,11 @@ export function encrypt(text: string): string {
  * Decrypts a string encrypted with the above function.
  */
 export function decrypt(text: string): string {
+  if (typeof text !== 'string') return '';
+  if (!text.includes(':')) return text; // If not encrypted, return as is
+  
   const [ivHex, encryptedText] = text.split(':');
-  if (!ivHex || !encryptedText) throw new Error('Invalid encrypted text format');
+  if (!ivHex || !encryptedText) return text;
   
   const iv = Buffer.from(ivHex, 'hex');
   const decipher = crypto.createDecipheriv(ALGORITHM, KEY, iv);
